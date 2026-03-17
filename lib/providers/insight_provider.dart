@@ -11,9 +11,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/correlation.dart';
 import '../services/ai_insight_service.dart';
+import '../services/subscription_service.dart';
 import 'symptom_provider.dart';
 import 'lifestyle_provider.dart';
 import 'auth_provider.dart';
+import 'subscription_provider.dart';
 
 final aiInsightServiceProvider = Provider<AIInsightService>((ref) {
   // TODO: Fetch API key from secure storage or environment
@@ -56,6 +58,14 @@ class InsightNotifier extends StateNotifier<AsyncValue<List<Correlation>>> {
   /// Calls the AI engine for premium insights.
   Future<void> requestAiInsights() async {
     state = const AsyncLoading();
+
+    final user = _ref.read(authStateProvider).value;
+    final canAccessAi = _ref.read(subscriptionServiceProvider).canAccess(user!, Feature.aiInsights);
+    
+    if (!canAccessAi) {
+      state = AsyncError('Premium subscription required for AI insights.', StackTrace.current);
+      return;
+    }
 
     final symptoms = _ref.read(symptomLogsProvider).value ?? [];
     final lifestyle = _ref.read(lifestyleEntriesProvider).value ?? [];

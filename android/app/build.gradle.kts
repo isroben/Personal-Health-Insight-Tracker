@@ -23,8 +23,8 @@ android {
 
     defaultConfig {
         applicationId = "com.healthinsight.health_insight_tracker"
-        // flutter_local_notifications requires minSdk 21+
-        minSdk = flutter.minSdkVersion
+        // health package requires minSdk 26+
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

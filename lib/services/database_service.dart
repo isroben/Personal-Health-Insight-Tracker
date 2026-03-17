@@ -259,4 +259,34 @@ class DatabaseService {
             .map((doc) => Correlation.fromMap(doc.data()))
             .toList());
   }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── User Management ──
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Updates the user's subscription tier in Firestore.
+  Future<void> updateUserSubscription(String userId, SubscriptionTier tier) async {
+    await _db.collection('users').doc(userId).update({
+      'subscription': tier.name,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── Community Insights ──
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Fetches aggregated anonymous trends from the community.
+  /// This mocks a "Global Analytics" feature.
+  Future<Map<String, dynamic>> getCommunityTrends() async {
+    // In a real app, this would query a summary collection or a Cloud Function.
+    // For the demo, we'll return mock global averages.
+    return {
+        'avgWellnessScore': 74,
+        'topTriggers': ['Caffeine', 'Late Sleep', 'Dehydration'],
+        'commonSymptoms': ['Headache', 'Low Energy'],
+        'participationCount': 1250,
+    };
+  }
 }
+

@@ -10,19 +10,24 @@
 /// ==========================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/gamification_provider.dart';
+import '../providers/auth_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final authState = ref.watch(authStateProvider);
+    final user = authState.valueOrNull;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: const Text('Dashboard'),
-        centerTitle: false, // Left aligned for modern feel
+        centerTitle: false, 
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
@@ -40,8 +45,10 @@ class HomeScreen extends StatelessWidget {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
-            // TODO: Refresh data provider
-            await Future.delayed(const Duration(seconds: 1));
+            if (user != null) {
+              ref.invalidate(wellnessScoreProvider(user.id));
+              ref.invalidate(streakProvider(user.id));
+            }
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -51,14 +58,14 @@ class HomeScreen extends StatelessWidget {
               children: [
                 // ── Greeting & Date ──
                 Text(
-                  'Good morning, Alex',
+                  'Good morning, ${user?.name.split(' ')[0] ?? 'Explorer'}',
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.primary,
                   ),
                 ),
                 Text(
-                  'Thursday, October 12',
+                  'Tuesday, March 18', // In a real app, use intl to format DateTime.now()
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: Colors.grey.shade600,
                   ),
@@ -66,7 +73,11 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // ── Health Score Card ──
-                const _HealthScoreCard(),
+                if (user != null)
+                   _HealthScoreCard(userId: user.id)
+                else
+                   const _HealthScoreCard(), // Fallback/Loading
+                
                 const SizedBox(height: 24),
 
                 // ── Recent Logs Summary ──
@@ -141,16 +152,26 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// A visually appealing card showing an overall health score and trend arrows.
-class _HealthScoreCard extends StatelessWidget {
-  const _HealthScoreCard();
+class _HealthScoreCard extends ConsumerWidget {
+  final String? userId;
+  const _HealthScoreCard({this.userId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    // Dummy state values
-    const score = 82;
-    const isImproving = true;
+    
+    // Watch dynamic data
+    final scoreAsync = userId != null 
+        ? ref.watch(wellnessScoreProvider(userId!))
+        : const AsyncValue<int>.data(82); // Fallback
+        
+    final streakAsync = userId != null
+        ? ref.watch(streakProvider(userId!))
+        : const AsyncValue<int>.data(5);
+
+    final score = scoreAsync.value ?? 0;
+    final streak = streakAsync.value ?? 0;
+    const isImproving = true; // Still mocked for UI demo
 
     return Container(
       width: double.infinity,
@@ -175,7 +196,6 @@ class _HealthScoreCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // Background decorative element (Glassmorphism hint)
           Positioned(
             right: -20,
             top: -20,
@@ -188,12 +208,35 @@ class _HealthScoreCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Wellness Score',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Wellness Score',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (streak > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.fireplace, color: Colors.orange, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$streak Day Streak',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Row(
@@ -216,7 +259,6 @@ class _HealthScoreCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  // Trend indicator
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 6),
@@ -247,9 +289,11 @@ class _HealthScoreCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Great job! Your sleep consistency is paying off. Keep it up.',
-                style: TextStyle(color: Colors.white, height: 1.4),
+              Text(
+                score >= 80 
+                  ? 'Excellent job! Your consistency is paying off.' 
+                  : 'You\'re on the right track! Try logging more lifestyle details.',
+                style: const TextStyle(color: Colors.white, height: 1.4),
               ),
             ],
           ),

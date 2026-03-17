@@ -8,10 +8,12 @@
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/pdf_report_service.dart';
+import '../services/subscription_service.dart';
 import 'auth_provider.dart';
 import 'symptom_provider.dart';
 import 'lifestyle_provider.dart';
 import 'insight_provider.dart';
+import 'subscription_provider.dart';
 
 final pdfReportServiceProvider = Provider<PdfReportService>((ref) {
   return PdfReportService();
@@ -35,6 +37,12 @@ class ReportNotifier extends StateNotifier<AsyncValue<Uint8List?>> {
     state = const AsyncLoading();
 
     final user = _ref.read(authStateProvider).value;
+    final canAccessReports = _ref.read(subscriptionServiceProvider).canAccess(user!, Feature.advancedReports);
+
+    if (!canAccessReports) {
+      state = AsyncError('Premium subscription required for advanced PDF reports.', StackTrace.current);
+      return;
+    }
     if (user == null) {
       state = AsyncError('User not authenticated', StackTrace.current);
       return;
