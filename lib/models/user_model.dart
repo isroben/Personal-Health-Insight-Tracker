@@ -1,16 +1,6 @@
 /// ==========================================================================
 /// user_model.dart — User Entity
 /// ==========================================================================
-/// Represents an authenticated user in the app.
-/// Fields: id, name, email, profile photo URL, subscription tier,
-///         createdAt, updatedAt timestamps.
-/// Stored in the Firestore `users` collection.
-///
-/// Serialization:
-///   - [toMap] / [fromMap] for Firestore documents
-///   - [toJson] / [fromJson] convenience wrappers (same format)
-/// ==========================================================================
-
 import 'dart:convert';
 
 class UserModel {
@@ -19,6 +9,7 @@ class UserModel {
   final String email;
   final String? profilePhotoUrl;
   final SubscriptionTier subscription;
+  final HealthPreferences preferences;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -28,14 +19,11 @@ class UserModel {
     required this.email,
     this.profilePhotoUrl,
     this.subscription = SubscriptionTier.free,
+    this.preferences = const HealthPreferences(),
     required this.createdAt,
     required this.updatedAt,
   });
 
-  // ── Firestore Serialization ──
-
-  /// Creates a [UserModel] from a Firestore document map.
-  /// Handles both Timestamp and String date formats gracefully.
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
       id: map['id'] as String,
@@ -43,16 +31,17 @@ class UserModel {
       email: map['email'] as String,
       profilePhotoUrl: map['profilePhotoUrl'] as String?,
       subscription: SubscriptionTier.values.firstWhere(
-        (e) => e.name == map['subscription'],
+        (e) => e.name == (map['subscription'] ?? 'free'),
         orElse: () => SubscriptionTier.free,
       ),
+      preferences: map['preferences'] != null 
+          ? HealthPreferences.fromMap(map['preferences'] as Map<String, dynamic>)
+          : const HealthPreferences(),
       createdAt: _parseDate(map['createdAt']),
       updatedAt: _parseDate(map['updatedAt']),
     );
   }
 
-  /// Converts to a Firestore-compatible map.
-  /// Dates stored as ISO 8601 strings for cross-platform compatibility.
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -60,21 +49,16 @@ class UserModel {
       'email': email,
       'profilePhotoUrl': profilePhotoUrl,
       'subscription': subscription.name,
+      'preferences': preferences.toMap(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
-  // ── JSON Convenience ──
-
-  /// Creates a [UserModel] from a JSON string.
   factory UserModel.fromJson(String source) =>
       UserModel.fromMap(json.decode(source) as Map<String, dynamic>);
 
-  /// Serializes to a JSON string (useful for local cache).
   String toJson() => json.encode(toMap());
-
-  // ── Copy ──
 
   UserModel copyWith({
     String? id,
@@ -82,6 +66,7 @@ class UserModel {
     String? email,
     String? profilePhotoUrl,
     SubscriptionTier? subscription,
+    HealthPreferences? preferences,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -91,37 +76,67 @@ class UserModel {
       email: email ?? this.email,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
       subscription: subscription ?? this.subscription,
+      preferences: preferences ?? this.preferences,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
   }
-
-  @override
-  String toString() => 'UserModel(id: $id, name: $name, email: $email)';
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) || other is UserModel && other.id == id;
-
-  @override
-  int get hashCode => id.hashCode;
 }
 
-/// Subscription tiers controlling feature access.
-enum SubscriptionTier {
-  /// Free tier — basic logging, weekly summaries, limited reports.
-  free,
+class HealthPreferences {
+  final String primaryCondition;
+  final MeasurementUnit unit;
+  final bool notificationsEnabled;
+  final bool cloudSyncEnabled;
 
-  /// Premium tier — AI predictions, multi-factor correlations, advanced reports.
-  premium,
+  const HealthPreferences({
+    this.primaryCondition = 'General Wellness',
+    this.unit = MeasurementUnit.metric,
+    this.notificationsEnabled = true,
+    this.cloudSyncEnabled = true,
+  });
+
+  factory HealthPreferences.fromMap(Map<String, dynamic> map) {
+    return HealthPreferences(
+      primaryCondition: map['primaryCondition'] as String? ?? 'General Wellness',
+      unit: MeasurementUnit.values.firstWhere(
+        (e) => e.name == (map['unit'] ?? 'metric'),
+        orElse: () => MeasurementUnit.metric,
+      ),
+      notificationsEnabled: map['notificationsEnabled'] as bool? ?? true,
+      cloudSyncEnabled: map['cloudSyncEnabled'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'primaryCondition': primaryCondition,
+      'unit': unit.name,
+      'notificationsEnabled': notificationsEnabled,
+      'cloudSyncEnabled': cloudSyncEnabled,
+    };
+  }
+
+  HealthPreferences copyWith({
+    String? primaryCondition,
+    MeasurementUnit? unit,
+    bool? notificationsEnabled,
+    bool? cloudSyncEnabled,
+  }) {
+    return HealthPreferences(
+      primaryCondition: primaryCondition ?? this.primaryCondition,
+      unit: unit ?? this.unit,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      cloudSyncEnabled: cloudSyncEnabled ?? this.cloudSyncEnabled,
+    );
+  }
 }
 
-// ── Helper ──
+enum SubscriptionTier { free, premium }
+enum MeasurementUnit { metric, imperial }
 
-/// Parses a date from either an ISO 8601 string or a Firestore Timestamp.
 DateTime _parseDate(dynamic value) {
   if (value is String) return DateTime.parse(value);
-  // Firestore Timestamp has a toDate() method
   if (value != null && value is! String) {
     try {
       return (value as dynamic).toDate() as DateTime;
