@@ -1,82 +1,77 @@
 /// ==========================================================================
-/// report_provider.dart — Report Generation State
+/// report_provider.dart — Report Generation State Management
 /// ==========================================================================
-/// Manages the state and logic for generating health reports.
-/// Connects the UI to the PdfReportService and fetches required data.
+/// Manages the state of PDF report generation and sharing.
+/// Uses [PdfReportService] to create doctor-ready exports.
 /// ==========================================================================
 
-import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/pdf_report_service.dart';
-import '../services/subscription_service.dart';
 import 'auth_provider.dart';
 import 'symptom_provider.dart';
 import 'lifestyle_provider.dart';
 import 'insight_provider.dart';
-import 'subscription_provider.dart';
 
+/// Provides a singleton instance of [PdfReportService].
 final pdfReportServiceProvider = Provider<PdfReportService>((ref) {
   return PdfReportService();
 });
 
-final reportProvider = StateNotifierProvider<ReportNotifier, AsyncValue<Uint8List?>>((ref) {
+/// State notifier for managing the report generation lifecycle.
+final reportProvider = StateNotifierProvider<ReportNotifier, AsyncValue<void>>((ref) {
   return ReportNotifier(ref.read(pdfReportServiceProvider), ref);
 });
 
-class ReportNotifier extends StateNotifier<AsyncValue<Uint8List?>> {
+class ReportNotifier extends StateNotifier<AsyncValue<void>> {
   final PdfReportService _service;
   final Ref _ref;
 
   ReportNotifier(this._service, this._ref) : super(const AsyncData(null));
 
-  /// Generates the PDF report for the current user and specified date range.
+  /// Generates a PDF report and opens the platform share sheet.
   Future<void> generateAndShareReport({
     required DateTime startDate,
     required DateTime endDate,
   }) async {
     state = const AsyncLoading();
 
-    final user = _ref.read(authStateProvider).value;
-    final canAccessReports = _ref.read(subscriptionServiceProvider).canAccess(user!, Feature.advancedReports);
-
-    if (!canAccessReports) {
-      state = AsyncError('Premium subscription required for advanced PDF reports.', StackTrace.current);
-      return;
-    }
-    if (user == null) {
-      state = AsyncError('User not authenticated', StackTrace.current);
-      return;
-    }
-
     try {
-      // Fetch required data from existing providers
-      // Note: In a real app, these would be filtered by date range at the service layer
+      final user = _ref.read(authStateProvider).value;
+      if (user == null) throw Exception('User not authenticated');
+
+      // 1. Gather data for the report
       final symptoms = _ref.read(symptomLogsProvider).value ?? [];
       final lifestyle = _ref.read(lifestyleEntriesProvider).value ?? [];
       final correlations = _ref.read(insightProvider).value ?? [];
 
-      // Generate the PDF
+      // 2. Filter data by date range
+      final filteredSymptoms = symptoms.where((s) => 
+        s.date.isAfter(startDate.subtract(const Duration(seconds: 1))) && 
+        s.date.isBefore(endDate.add(const Duration(seconds: 1)))
+      ).toList();
+
+      final filteredLifestyle = lifestyle.where((l) => 
+        l.date.isAfter(startDate.subtract(const Duration(seconds: 1))) && 
+        l.date.isBefore(endDate.add(const Duration(seconds: 1)))
+      ).toList();
+
+      // 3. Generate the PDF bytes
       final pdfData = await _service.generateReport(
         user: user,
-        symptoms: symptoms,
-        lifestyle: lifestyle,
+        symptoms: filteredSymptoms,
+        lifestyle: filteredLifestyle,
         correlations: correlations,
         startDate: startDate,
         endDate: endDate,
       );
 
-      // Share the report
-      await _service.shareReport(
-        pdfData,
-        'Health_Report_${user.name.replaceAll(' ', '_')}.pdf',
-      );
+      // 4. Trigger share sheet
+      final filename = 'Health_Report_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      await _service.shareReport(pdfData, filename);
 
-      state = AsyncData(pdfData);
+      state = const AsyncData(null);
     } catch (e, st) {
       state = AsyncError(e, st);
     }
   }
-
-  /// Resets the report state.
-  void reset() => state = const AsyncData(null);
 }

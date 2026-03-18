@@ -1,14 +1,9 @@
 /// ==========================================================================
-/// settings_screen.dart — Settings & Profile Screen
+/// settings_screen.dart — User Profile & App Preferences
 /// ==========================================================================
-/// User preferences and profile configuration.
-/// Integrates the premium subscription upsell banner.
-/// ==========================================================================
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
-import '../providers/subscription_provider.dart';
 import '../models/user_model.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -17,8 +12,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final user = ref.watch(authStateProvider).value;
-    final isPremium = user?.subscription == SubscriptionTier.premium;
+    final user = ref.watch(authStateProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -27,246 +21,158 @@ class SettingsScreen extends ConsumerWidget {
         centerTitle: false,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Profile Header ──
-              if (user != null)
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 32,
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        child: Text(
-                          user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.onPrimaryContainer,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  user.name,
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                if (isPremium) ...[
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.amber.shade700,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      'PREMIUM',
-                                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            Text(
-                              user.email,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: () {},
-                        tooltip: 'Edit Profile',
-                      ),
-                    ],
-                  ),
-                ),
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: [
+            // ── Profile Section ──
+            if (user != null)
+              _buildProfileHeader(user, theme)
+            else
+              const Center(child: CircularProgressIndicator()),
 
-              // ── Premium Subscription Banner (Upsell) ──
-              if (!isPremium)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6A11CB), Color(0xFF2575FC)],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.workspace_premium, color: Colors.amber, size: 32),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Upgrade to Premium',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Unlock AI predictions & advanced reports.',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            ref.read(subscriptionActionsProvider.notifier).upgradeToPremium();
-                          },
-                          style: TextButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF6A11CB),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          child: const Text('Upgrade'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 16),
+            const SizedBox(height: 32),
+            
+            _buildSectionHeader(theme, 'Subscription'),
+            _buildSettingsTile(
+              icon: Icons.workspace_premium,
+              title: 'Membership Tier',
+              subtitle: user?.subscription.name.toUpperCase() ?? 'FREE',
+              onTap: () {},
+            ),
 
-              // ── Settings Sections ──
-              _buildSettingsGroup(
-                context,
-                title: 'Preferences',
-                children: [
-                  _buildListTile(
-                    context,
-                    icon: Icons.notifications_active_outlined,
-                    title: 'Reminders',
-                    trailing: const Text('9:00 PM', style: TextStyle(color: Colors.grey)),
-                  ),
-                  _buildListTile(
-                    context,
-                    icon: Icons.dark_mode_outlined,
-                    title: 'Theme',
-                    trailing: const Text('System', style: TextStyle(color: Colors.grey)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+            const SizedBox(height: 24),
+            _buildSectionHeader(theme, 'Account & Privacy'),
+            _buildSettingsTile(
+              icon: Icons.notifications_none,
+              title: 'Notifications',
+              onTap: () {},
+            ),
+            _buildSettingsTile(
+              icon: Icons.security,
+              title: 'Data & Privacy',
+              onTap: () {},
+            ),
+            _buildSettingsTile(
+              icon: Icons.cloud_upload_outlined,
+              title: 'Export My Data',
+              onTap: () {},
+            ),
 
-              _buildSettingsGroup(
-                context,
-                title: 'Data & Privacy',
-                children: [
-                  _buildListTile(context, icon: Icons.download_outlined, title: 'Export Data'),
-                  _buildListTile(context, icon: Icons.lock_outline, title: 'Privacy Settings'),
-                  _buildListTile(
-                    context,
-                    icon: Icons.delete_forever_outlined,
-                    title: 'Delete Data',
-                    color: Colors.redAccent,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+            const SizedBox(height: 24),
+            _buildSectionHeader(theme, 'App Information'),
+            _buildSettingsTile(
+              icon: Icons.help_outline,
+              title: 'Help Center',
+              onTap: () {},
+            ),
+            _buildSettingsTile(
+              icon: Icons.info_outline,
+              title: 'About App',
+              subtitle: 'v1.0.0',
+              onTap: () {},
+            ),
 
-              _buildSettingsGroup(
-                context,
-                title: 'Support',
-                children: [
-                  _buildListTile(context, icon: Icons.help_outline, title: 'Help Center'),
-                  _buildListTile(context, icon: Icons.bug_report_outlined, title: 'Report a Bug'),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // ── Sign Out ──
-              Center(
-                child: TextButton.icon(
-                  onPressed: () {
-                    ref.read(authActionsProvider.notifier).signOut();
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Sign Out'),
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+            const SizedBox(height: 40),
+            
+            // ── Sign Out Button ──
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  _showSignOutDialog(context, ref);
+                },
+                icon: const Icon(Icons.logout, color: Colors.red),
+                label: const Text('Sign Out', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: BorderSide(color: Colors.red.withValues(alpha: 0.3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-              const SizedBox(height: 16),
-              Center(
-                child: Text(
-                  'App Version 1.0.0',
-                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 100),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSettingsGroup(BuildContext context, {required String title, required List<Widget> children}) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildProfileHeader(UserModel user, ThemeData theme) {
+    return Row(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: Text(
-            title.toUpperCase(),
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
+        CircleAvatar(
+          radius: 32,
+          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+          child: user.profilePhotoUrl != null
+              ? Image.network(user.profilePhotoUrl!)
+              : Icon(Icons.person, size: 32, color: theme.colorScheme.primary),
         ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(children: children),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(user.name, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text(user.email, style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey)),
+          ],
+        ),
+        const Spacer(),
+        IconButton(
+          icon: const Icon(Icons.edit_outlined, size: 20),
+          onPressed: () {},
         ),
       ],
     );
   }
 
-  Widget _buildListTile(
-    BuildContext context, {
+  Widget _buildSectionHeader(ThemeData theme, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Text(
+        title,
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsTile({
     required IconData icon,
     required String title,
-    Widget? trailing,
-    Color? color,
+    String? subtitle,
+    required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: color ?? Theme.of(context).colorScheme.onSurface),
-      title: Text(title, style: TextStyle(color: color)),
-      trailing: trailing ?? const Icon(Icons.chevron_right, color: Colors.grey),
-      onTap: () {},
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: Colors.grey.shade700),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: subtitle != null ? Text(subtitle) : null,
+      trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+      onTap: onTap,
+    );
+  }
+
+  void _showSignOutDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out? Your data will remain synced with the cloud.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ref.read(authActionsProvider.notifier).signOut();
+            },
+            child: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 }
-

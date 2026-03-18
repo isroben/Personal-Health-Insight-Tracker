@@ -10,18 +10,23 @@
 /// ==========================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_provider.dart';
+import '../providers/logging_provider.dart';
+import '../models/symptom_log.dart';
+import '../models/lifestyle_entry.dart';
 import '../widgets/lifestyle_slider.dart';
 
-class LoggingScreen extends StatefulWidget {
+class LoggingScreen extends ConsumerStatefulWidget {
   const LoggingScreen({super.key});
 
   @override
-  State<LoggingScreen> createState() => _LoggingScreenState();
+  ConsumerState<LoggingScreen> createState() => _LoggingScreenState();
 }
 
-class _LoggingScreenState extends State<LoggingScreen> {
+class _LoggingScreenState extends ConsumerState<LoggingScreen> {
   // Symptom State
-  String? _selectedSymptom;
+  SymptomType? _selectedSymptomType;
   double _severity = 5.0;
   bool _showNotes = false;
   final TextEditingController _notesController = TextEditingController();
@@ -29,17 +34,9 @@ class _LoggingScreenState extends State<LoggingScreen> {
   // Lifestyle State
   double _sleepHours = 7.0;
   double _stressLevel = 3.0;
-  double _hydration = 4.0;
-  double _exerciseMins = 30.0;
-
-  final List<String> _commonSymptoms = [
-    'Headache',
-    'Migraine',
-    'Fatigue',
-    'Nausea',
-    'Bloating',
-    'Brain Fog',
-  ];
+  int _hydration = 4;
+  int _exerciseMins = 30;
+  DietQuality _dietQuality = DietQuality.fair;
 
   @override
   void dispose() {
@@ -47,173 +44,236 @@ class _LoggingScreenState extends State<LoggingScreen> {
     super.dispose();
   }
 
+  Future<void> _handleSave() async {
+    final user = ref.read(authStateProvider).valueOrNull;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to log entries.')),
+      );
+      return;
+    }
+
+    final notifier = ref.read(loggingStateProvider.notifier);
+
+    // 1. Log Symptom (if selected)
+    if (_selectedSymptomType != null) {
+      final symptomResult = await notifier.submitSymptomLog(
+        userId: user.id,
+        symptomTypeName: _selectedSymptomType!.name,
+        severity: _severity,
+        notes: _showNotes ? _notesController.text : null,
+      );
+
+      if (!symptomResult.success) {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(symptomResult.message ?? 'Failed to log symptom.')),
+          );
+        }
+        return;
+      }
+    }
+
+    // 2. Log Lifestyle
+    final lifestyleResult = await notifier.submitLifestyleEntry(
+      userId: user.id,
+      sleepHours: _sleepHours,
+      dietQualityName: _dietQuality.name,
+      hydrationGlasses: _hydration,
+      exerciseMinutes: _exerciseMins,
+      stressLevel: _stressLevel,
+    );
+
+    if (mounted) {
+      if (lifestyleResult.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logs saved successfully!')),
+        );
+        // Reset state or navigate back
+        setState(() {
+          _selectedSymptomType = null;
+          _showNotes = false;
+          _notesController.clear();
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(lifestyleResult.message ?? 'Failed to save lifestyle.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final logState = ref.watch(loggingStateProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('New Log Entry'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              // TODO: Close if opened as modal
-            },
-            child: const Text('Cancel'),
-          ),
-        ],
+        title: const Text('Log Today\'s Health'),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── 1. Symptom Selection ──
-              _buildSectionHeader('What are you experiencing?', Icons.sick_outlined, theme),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _commonSymptoms.map((symptom) {
-                  final isSelected = _selectedSymptom == symptom;
-                  return FilterChip(
-                    label: Text(symptom),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() => _selectedSymptom = selected ? symptom : null);
-                    },
-                    selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
-                    checkmarkColor: theme.colorScheme.primary,
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: () {
-                  // TODO: Open full symptom search
-                },
-                icon: const Icon(Icons.add),
-                label: const Text('Other symptom...'),
-              ),
-
-              // ── 2. Severity (Animated conditional) ──
-              AnimatedSize(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                child: _selectedSymptom == null
-                    ? const SizedBox.shrink()
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 24),
-                          _buildSectionHeader(
-                            'Severity: ${_severity.toInt()}/10',
-                            Icons.speed,
-                            theme,
-                          ),
-                          Slider(
-                            value: _severity,
-                            min: 1,
-                            max: 10,
-                            divisions: 9,
-                            activeColor: _getSeverityColor(_severity),
-                            onChanged: (val) => setState(() => _severity = val),
-                          ),
-                          // Notes toggle
-                          Row(
-                            children: [
-                              Checkbox(
-                                value: _showNotes,
-                                onChanged: (val) =>
-                                    setState(() => _showNotes = val ?? false),
-                              ),
-                              const Text('Add context/notes (optional)'),
-                            ],
-                          ),
-                          if (_showNotes)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: TextField(
-                                controller: _notesController,
-                                decoration: const InputDecoration(
-                                  hintText: 'What triggered this? Any meds taken?',
-                                  border: OutlineInputBorder(),
-                                ),
-                                maxLines: 3,
-                              ),
-                            ),
-                        ],
-                      ),
-              ),
-              const Divider(height: 48),
-
-              // ── 3. Daily Lifestyle ──
-              _buildSectionHeader('Daily Lifestyle', Icons.directions_run, theme),
-              const SizedBox(height: 16),
-              LifestyleSlider(
-                label: 'Sleep',
-                unit: 'hrs',
-                icon: Icons.bedtime_outlined,
-                value: _sleepHours,
-                min: 0,
-                max: 14,
-                divisions: 28, // Half-hour increments
-                onChanged: (v) => setState(() => _sleepHours = v),
-              ),
-              const SizedBox(height: 8),
-              LifestyleSlider(
-                label: 'Stress',
-                unit: '/ 10',
-                icon: Icons.psychology_outlined,
-                value: _stressLevel,
-                min: 1,
-                max: 10,
-                divisions: 9,
-                onChanged: (v) => setState(() => _stressLevel = v),
-              ),
-              const SizedBox(height: 8),
-              LifestyleSlider(
-                label: 'Hydration',
-                unit: 'glasses',
-                icon: Icons.water_drop_outlined,
-                value: _hydration,
-                min: 0,
-                max: 15,
-                divisions: 15,
-                onChanged: (v) => setState(() => _hydration = v),
-              ),
-              const SizedBox(height: 8),
-              LifestyleSlider(
-                label: 'Exercise',
-                unit: 'mins',
-                icon: Icons.fitness_center_outlined,
-                value: _exerciseMins,
-                min: 0,
-                max: 120,
-                divisions: 12, // 10-min increments
-                onChanged: (v) => setState(() => _exerciseMins = v),
-              ),
-              const SizedBox(height: 32),
-
-              // ── Save Button ──
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _selectedSymptom == null
-                      ? null
-                      : () {
-                          // TODO: Validate and save to Riverpod provider
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Log saved successfully!')),
-                          );
-                        },
-                  child: const Text('Save Entry', style: TextStyle(fontSize: 16)),
+        child: logState.maybeWhen(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          orElse: () => SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── 1. Symptom Selection ──
+                _buildSectionHeader('Any symptoms today?', Icons.sick_outlined, theme),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: SymptomType.values.map((type) {
+                    final isSelected = _selectedSymptomType == type;
+                    return FilterChip(
+                      label: Text(type.displayName),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() => _selectedSymptomType = selected ? type : null);
+                      },
+                      selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                      checkmarkColor: theme.colorScheme.primary,
+                    );
+                  }).toList(),
                 ),
-              ),
-              const SizedBox(height: 24),
-            ],
+
+                // ── 2. Severity (Animated conditional) ──
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: _selectedSymptomType == null
+                      ? const SizedBox.shrink()
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 24),
+                            _buildSectionHeader(
+                              'Severity: ${_severity.toInt()}/10',
+                              Icons.speed,
+                              theme,
+                            ),
+                            Slider(
+                              value: _severity,
+                              min: 1,
+                              max: 10,
+                              divisions: 9,
+                              activeColor: _getSeverityColor(_severity),
+                              onChanged: (val) => setState(() => _severity = val),
+                            ),
+                            // Notes toggle
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _showNotes,
+                                  onChanged: (val) =>
+                                      setState(() => _showNotes = val ?? false),
+                                ),
+                                const Text('Add notes (triggers, meds, etc.)'),
+                              ],
+                            ),
+                            if (_showNotes)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: TextField(
+                                  controller: _notesController,
+                                  decoration: const InputDecoration(
+                                    hintText: 'e.g., "Drank coffee late", "Took Ibuprofen"',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  maxLines: 3,
+                                ),
+                              ),
+                          ],
+                        ),
+                ),
+                const Divider(height: 48),
+
+                // ── 3. Daily Lifestyle ──
+                _buildSectionHeader('Daily Factors', Icons.directions_run, theme),
+                const SizedBox(height: 16),
+                LifestyleSlider(
+                  label: 'Sleep',
+                  unit: 'hrs',
+                  icon: Icons.bedtime_outlined,
+                  value: _sleepHours,
+                  min: 0,
+                  max: 14,
+                  divisions: 28,
+                  onChanged: (v) => setState(() => _sleepHours = v),
+                ),
+                const SizedBox(height: 8),
+                LifestyleSlider(
+                  label: 'Stress',
+                  unit: '/ 10',
+                  icon: Icons.psychology_outlined,
+                  value: _stressLevel,
+                  min: 1,
+                  max: 10,
+                  divisions: 9,
+                  onChanged: (v) => setState(() => _stressLevel = v),
+                ),
+                const SizedBox(height: 8),
+                LifestyleSlider(
+                  label: 'Hydration',
+                  unit: 'glasses',
+                  icon: Icons.water_drop_outlined,
+                  value: _hydration.toDouble(),
+                  min: 0,
+                  max: 15,
+                  divisions: 15,
+                  onChanged: (v) => setState(() => _hydration = v.toInt()),
+                ),
+                const SizedBox(height: 8),
+                LifestyleSlider(
+                  label: 'Exercise',
+                  unit: 'mins',
+                  icon: Icons.fitness_center_outlined,
+                  value: _exerciseMins.toDouble(),
+                  min: 0,
+                  max: 120,
+                  divisions: 12,
+                  onChanged: (v) => setState(() => _exerciseMins = v.toInt()),
+                ),
+                const SizedBox(height: 24),
+                
+                // Diet Quality
+                Text('Diet Quality', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 8),
+                SegmentedButton<DietQuality>(
+                  segments: DietQuality.values.map((q) {
+                    return ButtonSegment(
+                      value: q,
+                      label: Text(q.displayName),
+                      icon: Text(q.emoji),
+                    );
+                  }).toList(),
+                  selected: {_dietQuality},
+                  onSelectionChanged: (newSelection) {
+                    setState(() => _dietQuality = newSelection.first);
+                  },
+                ),
+                const SizedBox(height: 40),
+
+                // ── Save Button ──
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _handleSave,
+                    icon: const Icon(Icons.check),
+                    label: const Text('Save Entry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         ),
       ),

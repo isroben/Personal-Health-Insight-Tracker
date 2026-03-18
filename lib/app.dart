@@ -1,13 +1,8 @@
 /// ==========================================================================
 /// app.dart — Root Application Widget
 /// ==========================================================================
-/// Configures MaterialApp with:
-/// - App-wide theme (colors, typography)
-/// - Named route definitions
-/// - Bottom tab navigation shell
-/// ==========================================================================
-
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'utils/theme.dart';
 import 'routes/app_router.dart';
@@ -17,19 +12,30 @@ import 'screens/logging_screen.dart';
 import 'screens/insights_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/auth_screen.dart';
+import 'providers/auth_provider.dart';
 
-class HealthInsightApp extends StatelessWidget {
+class HealthInsightApp extends ConsumerWidget {
   const HealthInsightApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authStateProvider);
+
     return MaterialApp(
       title: 'Health Insight Tracker',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: const MainShell(),
+      // ── Auth Wrapper ──
+      // If the user is authenticated, show the MainShell (Home, Log, etc.)
+      // If not, show the AuthScreen (Login/Signup)
+      home: authState.when(
+        data: (user) => user == null ? const AuthScreen() : const MainShell(),
+        loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (e, _) => Scaffold(body: Center(child: Text('Auth Error: $e'))),
+      ),
       onGenerateRoute: AppRouter.generateRoute,
     );
   }

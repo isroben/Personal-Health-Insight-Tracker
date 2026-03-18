@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "663176405151",
+    "project_id": "health-tracker-app-e18b6",
+    "storage_bucket": "health-tracker-app-e18b6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:663176405151:android:61abf493df21cbd1f2c2aa",
+        "android_client_info": {
+          "package_name": "com.example.health_tracker_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "663176405151-pr5g2en2qk2vfdvsaabsnm9jlbtnsjcc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNymkdjW5h73eUIMRwgYQvM9Llbkzijpo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "663176405151-pr5g2en2qk2vfdvsaabsnm9jlbtnsjcc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "663176405151-t0bojuallfa83fb0lnlfspmjd0cbs5u3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.healthinsight.healthInsightTracker"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:663176405151:android:227cd427acaf1e52f2c2aa",
+        "android_client_info": {
+          "package_name": "com.healthinsight.health_insight_tracker"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "663176405151-pr5g2en2qk2vfdvsaabsnm9jlbtnsjcc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNymkdjW5h73eUIMRwgYQvM9Llbkzijpo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "663176405151-pr5g2en2qk2vfdvsaabsnm9jlbtnsjcc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "663176405151-t0bojuallfa83fb0lnlfspmjd0cbs5u3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.healthinsight.healthInsightTracker"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
