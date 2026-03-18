@@ -1,7 +1,7 @@
 /// ==========================================================================
 /// bottom_nav_bar.dart — Custom Bottom Navigation Bar
 /// ==========================================================================
-/// Displays the 5 primary tabs: Home, Log, Insights, Reports, Settings.
+/// Displays the 5 primary tabs: Home, History, Insights, Reports, Settings.
 /// Designed to be clean, accessible, and easily customizable.
 /// ==========================================================================
 
@@ -30,9 +30,9 @@ class HealthBottomNavBar extends StatelessWidget {
           label: 'Home',
         ),
         NavigationDestination(
-          icon: Icon(Icons.edit_note_outlined),
-          selectedIcon: Icon(Icons.edit_note),
-          label: 'Log',
+          icon: Icon(Icons.history_outlined),
+          selectedIcon: Icon(Icons.history),
+          label: 'History',
         ),
         NavigationDestination(
           icon: Icon(Icons.insights_outlined),

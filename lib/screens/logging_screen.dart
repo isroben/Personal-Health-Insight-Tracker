@@ -16,9 +16,11 @@ import '../providers/logging_provider.dart';
 import '../models/symptom_log.dart';
 import '../models/lifestyle_entry.dart';
 import '../widgets/lifestyle_slider.dart';
+import '../services/logging_service.dart'; // Added this import for LogResult
 
 class LoggingScreen extends ConsumerStatefulWidget {
-  const LoggingScreen({super.key});
+  final SymptomLog? existingLog;
+  const LoggingScreen({super.key, this.existingLog});
 
   @override
   ConsumerState<LoggingScreen> createState() => _LoggingScreenState();
@@ -39,6 +41,19 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
   DietQuality _dietQuality = DietQuality.fair;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.existingLog != null) {
+      _selectedSymptomType = widget.existingLog!.symptomType;
+      _severity = widget.existingLog!.severity.toDouble();
+      if (widget.existingLog!.notes != null && widget.existingLog!.notes!.isNotEmpty) {
+        _showNotes = true;
+        _notesController.text = widget.existingLog!.notes!;
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _notesController.dispose();
     super.dispose();
@@ -53,16 +68,26 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
       return;
     }
 
+    final service = ref.read(loggingServiceProvider);
     final notifier = ref.read(loggingStateProvider.notifier);
 
-    // 1. Log Symptom (if selected)
+    // 1. Log/Update Symptom (if selected)
     if (_selectedSymptomType != null) {
-      final symptomResult = await notifier.submitSymptomLog(
-        userId: user.id,
-        symptomTypeName: _selectedSymptomType!.name,
-        severity: _severity,
-        notes: _showNotes ? _notesController.text : null,
-      );
+      LogResult symptomResult;
+      if (widget.existingLog != null) {
+        symptomResult = await service.updateSymptomLog(
+          existingLog: widget.existingLog!,
+          newSeverity: _severity,
+          newNotes: _showNotes ? _notesController.text : null,
+        );
+      } else {
+        symptomResult = await notifier.submitSymptomLog(
+          userId: user.id,
+          symptomTypeName: _selectedSymptomType!.name,
+          severity: _severity,
+          notes: _showNotes ? _notesController.text : null,
+        );
+      }
 
       if (!symptomResult.success) {
         if (mounted) {
@@ -74,32 +99,30 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
       }
     }
 
-    // 2. Log Lifestyle
-    final lifestyleResult = await notifier.submitLifestyleEntry(
-      userId: user.id,
-      sleepHours: _sleepHours,
-      dietQualityName: _dietQuality.name,
-      hydrationGlasses: _hydration,
-      exerciseMinutes: _exerciseMins,
-      stressLevel: _stressLevel,
-    );
+    // 2. Log Lifestyle (Only if not editing a specific past symptom log)
+    if (widget.existingLog == null) {
+      final lifestyleResult = await notifier.submitLifestyleEntry(
+        userId: user.id,
+        sleepHours: _sleepHours,
+        dietQualityName: _dietQuality.name,
+        hydrationGlasses: _hydration,
+        exerciseMinutes: _exerciseMins,
+        stressLevel: _stressLevel,
+      );
 
-    if (mounted) {
-      if (lifestyleResult.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Logs saved successfully!')),
-        );
-        // Reset state or navigate back
-        setState(() {
-          _selectedSymptomType = null;
-          _showNotes = false;
-          _notesController.clear();
-        });
-      } else {
+      if (!lifestyleResult.success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(lifestyleResult.message ?? 'Failed to save lifestyle.')),
         );
+        return;
       }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.existingLog != null ? 'Log updated!' : 'Logs saved successfully!')),
+      );
+      Navigator.pop(context);
     }
   }
 
@@ -107,11 +130,12 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final logState = ref.watch(loggingStateProvider);
+    final isEditing = widget.existingLog != null;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Log Today\'s Health'),
+        title: Text(isEditing ? 'Edit Log' : 'Log Today\'s Health'),
       ),
       body: SafeArea(
         child: logState.maybeWhen(
@@ -122,7 +146,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── 1. Symptom Selection ──
-                _buildSectionHeader('Any symptoms today?', Icons.sick_outlined, theme),
+                _buildSectionHeader(isEditing ? 'Symptom' : 'Any symptoms today?', Icons.sick_outlined, theme),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
@@ -132,7 +156,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
                     return FilterChip(
                       label: Text(type.displayName),
                       selected: isSelected,
-                      onSelected: (selected) {
+                      onSelected: isEditing ? null : (selected) {
                         setState(() => _selectedSymptomType = selected ? type : null);
                       },
                       selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
@@ -190,72 +214,75 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
                           ],
                         ),
                 ),
-                const Divider(height: 48),
-
-                // ── 3. Daily Lifestyle ──
-                _buildSectionHeader('Daily Factors', Icons.directions_run, theme),
-                const SizedBox(height: 16),
-                LifestyleSlider(
-                  label: 'Sleep',
-                  unit: 'hrs',
-                  icon: Icons.bedtime_outlined,
-                  value: _sleepHours,
-                  min: 0,
-                  max: 14,
-                  divisions: 28,
-                  onChanged: (v) => setState(() => _sleepHours = v),
-                ),
-                const SizedBox(height: 8),
-                LifestyleSlider(
-                  label: 'Stress',
-                  unit: '/ 10',
-                  icon: Icons.psychology_outlined,
-                  value: _stressLevel,
-                  min: 1,
-                  max: 10,
-                  divisions: 9,
-                  onChanged: (v) => setState(() => _stressLevel = v),
-                ),
-                const SizedBox(height: 8),
-                LifestyleSlider(
-                  label: 'Hydration',
-                  unit: 'glasses',
-                  icon: Icons.water_drop_outlined,
-                  value: _hydration.toDouble(),
-                  min: 0,
-                  max: 15,
-                  divisions: 15,
-                  onChanged: (v) => setState(() => _hydration = v.toInt()),
-                ),
-                const SizedBox(height: 8),
-                LifestyleSlider(
-                  label: 'Exercise',
-                  unit: 'mins',
-                  icon: Icons.fitness_center_outlined,
-                  value: _exerciseMins.toDouble(),
-                  min: 0,
-                  max: 120,
-                  divisions: 12,
-                  onChanged: (v) => setState(() => _exerciseMins = v.toInt()),
-                ),
-                const SizedBox(height: 24),
                 
-                // Diet Quality
-                Text('Diet Quality', style: theme.textTheme.titleSmall),
-                const SizedBox(height: 8),
-                SegmentedButton<DietQuality>(
-                  segments: DietQuality.values.map((q) {
-                    return ButtonSegment(
-                      value: q,
-                      label: Text(q.displayName),
-                      icon: Text(q.emoji),
-                    );
-                  }).toList(),
-                  selected: {_dietQuality},
-                  onSelectionChanged: (newSelection) {
-                    setState(() => _dietQuality = newSelection.first);
-                  },
-                ),
+                if (!isEditing) ...[
+                  const Divider(height: 48),
+
+                  // ── 3. Daily Lifestyle ──
+                  _buildSectionHeader('Daily Factors', Icons.directions_run, theme),
+                  const SizedBox(height: 16),
+                  LifestyleSlider(
+                    label: 'Sleep',
+                    unit: 'hrs',
+                    icon: Icons.bedtime_outlined,
+                    value: _sleepHours,
+                    min: 0,
+                    max: 14,
+                    divisions: 28,
+                    onChanged: (v) => setState(() => _sleepHours = v),
+                  ),
+                  const SizedBox(height: 8),
+                  LifestyleSlider(
+                    label: 'Stress',
+                    unit: '/ 10',
+                    icon: Icons.psychology_outlined,
+                    value: _stressLevel,
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    onChanged: (v) => setState(() => _stressLevel = v),
+                  ),
+                  const SizedBox(height: 8),
+                  LifestyleSlider(
+                    label: 'Hydration',
+                    unit: 'glasses',
+                    icon: Icons.water_drop_outlined,
+                    value: _hydration.toDouble(),
+                    min: 0,
+                    max: 15,
+                    divisions: 15,
+                    onChanged: (v) => setState(() => _hydration = v.toInt()),
+                  ),
+                  const SizedBox(height: 8),
+                  LifestyleSlider(
+                    label: 'Exercise',
+                    unit: 'mins',
+                    icon: Icons.fitness_center_outlined,
+                    value: _exerciseMins.toDouble(),
+                    min: 0,
+                    max: 120,
+                    divisions: 12,
+                    onChanged: (v) => setState(() => _exerciseMins = v.toInt()),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Diet Quality
+                  Text('Diet Quality', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  SegmentedButton<DietQuality>(
+                    segments: DietQuality.values.map((q) {
+                      return ButtonSegment(
+                        value: q,
+                        label: Text(q.displayName),
+                        icon: Text(q.emoji),
+                      );
+                    }).toList(),
+                    selected: {_dietQuality},
+                    onSelectionChanged: (newSelection) {
+                      setState(() => _dietQuality = newSelection.first);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 40),
 
                 // ── Save Button ──
@@ -264,7 +291,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
                   child: FilledButton.icon(
                     onPressed: _handleSave,
                     icon: const Icon(Icons.check),
-                    label: const Text('Save Entry', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    label: Text(isEditing ? 'Update Entry' : 'Save Entry', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

@@ -8,12 +8,13 @@ import 'utils/theme.dart';
 import 'routes/app_router.dart';
 import 'widgets/bottom_nav_bar.dart';
 import 'screens/home_screen.dart';
-import 'screens/logging_screen.dart';
+import 'screens/log_history_screen.dart';
 import 'screens/insights_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/auth_screen.dart';
 import 'providers/auth_provider.dart';
+import 'providers/navigation_provider.dart';
 
 class HealthInsightApp extends ConsumerWidget {
   const HealthInsightApp({super.key});
@@ -28,9 +29,6 @@ class HealthInsightApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      // ── Auth Wrapper ──
-      // If the user is authenticated, show the MainShell (Home, Log, etc.)
-      // If not, show the AuthScreen (Login/Signup)
       home: authState.when(
         data: (user) => user == null ? const AuthScreen() : const MainShell(),
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
@@ -43,34 +41,29 @@ class HealthInsightApp extends ConsumerWidget {
 
 /// MainShell — Houses the bottom navigation bar and switches between
 /// the five primary screens.
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerWidget {
   const MainShell({super.key});
-
-  @override
-  State<MainShell> createState() => _MainShellState();
-}
-
-class _MainShellState extends State<MainShell> {
-  int _currentIndex = 0;
 
   final List<Widget> _screens = const [
     HomeScreen(),
-    LoggingScreen(),
+    LogHistoryScreen(),
     InsightsScreen(),
     ReportsScreen(),
     SettingsScreen(),
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentIndex = ref.watch(bottomNavIndexProvider);
+
     return Scaffold(
       body: IndexedStack(
-        index: _currentIndex,
+        index: currentIndex,
         children: _screens,
       ),
       bottomNavigationBar: HealthBottomNavBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        currentIndex: currentIndex,
+        onTap: (index) => ref.read(bottomNavIndexProvider.notifier).state = index,
       ),
     );
   }

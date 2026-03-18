@@ -11,8 +11,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../providers/gamification_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/symptom_provider.dart';
+import '../providers/navigation_provider.dart';
+import '../providers/notification_provider.dart';
+import '../routes/app_router.dart';
+import '../models/symptom_log.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -22,6 +28,8 @@ class HomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final authState = ref.watch(authStateProvider);
     final user = authState.valueOrNull;
+    final notifications = ref.watch(notificationListProvider);
+    final unreadCount = notifications.where((n) => !n.isRead).length;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -29,10 +37,42 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('Dashboard'),
         centerTitle: false, 
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
-            tooltip: 'Notifications',
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none),
+                onPressed: () {
+                  Navigator.pushNamed(context, AppRouter.notificationsRoute);
+                },
+                tooltip: 'Notifications',
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '$unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 8),
           const CircleAvatar(
@@ -48,6 +88,7 @@ class HomeScreen extends ConsumerWidget {
             if (user != null) {
               ref.invalidate(wellnessScoreProvider(user.id));
               ref.invalidate(streakProvider(user.id));
+              ref.read(symptomLogsProvider.notifier).fetchLogs(user.id);
             }
           },
           child: SingleChildScrollView(
@@ -65,7 +106,7 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  'Tuesday, March 18', // In a real app, use intl to format DateTime.now()
+                  DateFormat('EEEE, MMMM dd').format(DateTime.now()),
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: Colors.grey.shade600,
                   ),
@@ -92,14 +133,15 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     TextButton(
                       onPressed: () {
-                        // Switch to History tab (if exists) or expand
+                        // Switch to History tab in the bottom navigation bar
+                        ref.read(bottomNavIndexProvider.notifier).state = 1;
                       },
                       child: const Text('See all'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                _buildRecentLogsColumn(theme),
+                _buildRecentLogsColumn(ref, theme),
                 const SizedBox(height: 100), // Space for FAB
               ],
             ),
@@ -109,7 +151,8 @@ class HomeScreen extends ConsumerWidget {
       // ── Quick Log FAB ──
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // TODO: Open Log screen directly or trigger log modal
+          // Open Log screen directly
+          Navigator.pushNamed(context, AppRouter.logRoute);
         },
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,
@@ -122,18 +165,39 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRecentLogsColumn(ThemeData theme) {
-    // Dummy Data for UI preview
-    return Column(
-      children: [
-        _buildLogItem('Headache', 'Severity: 4/10', '2 hrs ago', theme),
-        _buildLogItem('Fatigue', 'Severity: 7/10', 'Yesterday', theme),
-        _buildLogItem('Poor Sleep', '4.5 hours | High Stress', 'Oct 10', theme),
-      ],
+  Widget _buildRecentLogsColumn(WidgetRef ref, ThemeData theme) {
+    final logsAsync = ref.watch(symptomLogsProvider);
+
+    return logsAsync.when(
+      data: (logs) {
+        if (logs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.history_toggle_off, size: 48, color: theme.disabledColor),
+                  const SizedBox(height: 8),
+                  const Text('No recent logs. Start tracking!'),
+                ],
+              ),
+            ),
+          );
+        }
+        // Show only the 3 most recent logs
+        final recentLogs = logs.take(3).toList();
+        return Column(
+          children: recentLogs.map((log) => _buildLogItem(log, theme)).toList(),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, _) => Text('Error loading logs: $err'),
     );
   }
 
-  Widget _buildLogItem(String title, String subtitle, String time, ThemeData theme) {
+  Widget _buildLogItem(SymptomLog log, ThemeData theme) {
+    final timeStr = _formatRelativeTime(log.date);
+
     return Card(
       elevation: 0,
       color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
@@ -144,11 +208,26 @@ class HomeScreen extends ConsumerWidget {
           child: Icon(Icons.medical_services_outlined,
               color: theme.colorScheme.primary),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: Text(time, style: theme.textTheme.bodySmall),
+        title: Text(log.symptomType.displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('Severity: ${log.severity}/10'),
+        trailing: Text(timeStr, style: theme.textTheme.bodySmall),
       ),
     );
+  }
+
+  String _formatRelativeTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} mins ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} hrs ago';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else {
+      return DateFormat('MMM dd').format(dateTime);
+    }
   }
 }
 

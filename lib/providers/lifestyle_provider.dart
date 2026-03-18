@@ -12,7 +12,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/lifestyle_entry.dart';
 import '../services/database_service.dart';
-import 'symptom_provider.dart'; // re-use databaseServiceProvider
+import 'logging_provider.dart'; // import databaseServiceProvider from here
 
 /// Provides the list of lifestyle entries for the current user.
 final lifestyleEntriesProvider = StateNotifierProvider<

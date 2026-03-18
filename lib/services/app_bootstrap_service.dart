@@ -13,13 +13,14 @@ import 'local_cache_service.dart';
 import 'logging_service.dart';
 import 'nudge_service.dart';
 import 'notification_service.dart';
+import '../providers/logging_provider.dart';
 
 final appBootstrapServiceProvider = Provider<AppBootstrapService>((ref) {
   return AppBootstrapService(
-    cache: LocalCacheService(),
-    logging: LoggingService(),
-    nudge: NudgeService(),
-    notifications: NotificationService(),
+    cache: ref.read(localCacheServiceProvider),
+    logging: ref.read(loggingServiceProvider),
+    nudge: ref.read(nudgeServiceProvider),
+    notifications: ref.read(notificationServiceProvider),
   );
 });
 

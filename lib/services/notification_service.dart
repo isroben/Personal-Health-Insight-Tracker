@@ -1,53 +1,51 @@
 /// ==========================================================================
-/// notification_service.dart — Local Notification Service
+/// notification_service.dart — Local & Remote Notification Service
 /// ==========================================================================
 /// Handles:
 /// - Daily scheduled reminders (configurable time)
 /// - Immediate nudge notifications (triggered by high-severity logs)
 /// - Delayed nudge notifications (scheduled for later in the day)
 /// - Predictive alert notifications (premium — high-risk day warnings)
+/// - Remote Firebase Messaging (FCM) integration
 ///
-/// Uses flutter_local_notifications for all local scheduling.
-/// Firebase Messaging handles server-pushed notifications (separate setup).
-///
-/// Notification channels (Android):
-///   - 'reminders'    → Daily logging reminders (low priority)
-///   - 'nudges'       → Health tips and nudges (default priority)
-///   - 'alerts'       → High-severity alerts (high priority, vibrates)
+/// Uses flutter_local_notifications for local and firebase_messaging for remote.
 /// ==========================================================================
 
+import 'dart:io';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/notification_provider.dart';
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin;
+  final FirebaseMessaging _fcm;
+  final Ref? _ref;
 
-  NotificationService({FlutterLocalNotificationsPlugin? plugin})
-      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+  NotificationService({
+    FlutterLocalNotificationsPlugin? plugin,
+    FirebaseMessaging? fcm,
+    Ref? ref,
+  })  : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
+        _fcm = fcm ?? FirebaseMessaging.instance,
+        _ref = ref;
 
   // ── Notification IDs ──
-  // Fixed IDs allow us to cancel/replace specific notifications reliably.
   static const int _dailyReminderId = 1;
-  static const int _nudgeBaseId = 100; // nudges use 100+
-  static const int _alertBaseId = 200; // alerts use 200+
+  static const int _nudgeBaseId = 100;
+  static const int _alertBaseId = 200;
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Initialisation ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Initialises the notification plugin and timezone data.
-  ///
-  /// Call once from main.dart before runApp().
-  /// Requests notification permissions on iOS/Android 13+.
   Future<void> initialize() async {
-    // Initialize timezone data for scheduled notifications
     tz.initializeTimeZones();
 
-    // ── Android setup ──
+    // 1. Setup Local Notifications
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    // ── iOS setup ──
     const iosInit = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -63,26 +61,74 @@ class NotificationService {
       initSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
+
+    // 2. Setup Firebase Messaging
+    await _setupFCM();
+  }
+
+  Future<void> _setupFCM() async {
+    NotificationSettings settings = await _fcm.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      // Listen for foreground messages
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        _handleRemoteMessage(message);
+      });
+
+      // Terminated state
+      RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+      if (initialMessage != null) {
+        _handleRemoteMessage(initialMessage);
+      }
+
+      // Background but opened via notification
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        _handleRemoteMessage(message);
+      });
+    }
+  }
+
+  void _handleRemoteMessage(RemoteMessage message) {
+    final notification = message.notification;
+    if (notification != null) {
+      // Save to history using STATIC helper for thread-safe access
+      NotificationListNotifier.saveNotificationStatic(
+        title: notification.title ?? 'System Alert',
+        body: notification.body ?? '',
+        payload: message.data.toString(),
+      );
+
+      // Trigger state refresh if UI is active
+      if (_ref != null) {
+        _ref!.read(notificationListProvider.notifier).loadNotifications();
+      }
+
+      if (Platform.isAndroid) {
+        _plugin.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          _notificationDetails(channel: _Channel.alert),
+          payload: message.data.toString(),
+        );
+      }
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Daily Reminders ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Schedules a repeating daily reminder at the specified local time.
-  ///
-  /// Cancels any existing daily reminder before scheduling the new one,
-  /// so calling this multiple times is safe (idempotent).
-  ///
-  /// [hour] and [minute] are in local time (0–23, 0–59).
   Future<void> scheduleDailyReminder({
-    int hour = 21, // Default: 9 PM
+    int hour = 21,
     int minute = 0,
   }) async {
-    // Cancel any existing scheduled reminder first
     await _plugin.cancel(_dailyReminderId);
 
-    // Build the next occurrence of the specified time
     final now = tz.TZDateTime.now(tz.local);
     var scheduledDate = tz.TZDateTime(
       tz.local,
@@ -93,25 +139,26 @@ class NotificationService {
       minute,
     );
 
-    // If the time has already passed today, schedule for tomorrow
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
+    const title = '🌙 Time to log your health today';
+    const body = 'Tap to record your symptoms and lifestyle — it takes under 30 seconds.';
+
     await _plugin.zonedSchedule(
       _dailyReminderId,
-      '🌙 Time to log your health today',
-      'Tap to record your symptoms and lifestyle — it takes under 30 seconds.',
+      title,
+      body,
       scheduledDate,
       _notificationDetails(channel: _Channel.reminder),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time, // Repeat daily
+      matchDateTimeComponents: DateTimeComponents.time,
       payload: 'daily_reminder',
     );
   }
 
-  /// Cancels the scheduled daily reminder.
   Future<void> cancelDailyReminder() async {
     await _plugin.cancel(_dailyReminderId);
   }
@@ -120,11 +167,6 @@ class NotificationService {
   // ── Immediate Nudges ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Shows an immediate nudge notification (appears right away).
-  ///
-  /// Used by [LoggingService] when a high-severity entry is logged.
-  /// Each nudge gets a unique ID derived from the current timestamp
-  /// so multiple nudges don't overwrite each other.
   Future<void> sendImmediateNudge({
     required String title,
     required String body,
@@ -139,16 +181,14 @@ class NotificationService {
       _notificationDetails(channel: _Channel.nudge),
       payload: payload,
     );
+
+    _addToHistory(title: title, body: body, payload: payload);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Delayed Nudges ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Schedules a one-time nudge notification after a delay.
-  ///
-  /// Used for gentle lifestyle reminders (e.g., "move a little today"
-  /// scheduled 1 hour after a zero-exercise log).
   Future<void> scheduleDelayedNudge({
     required String title,
     required String body,
@@ -169,53 +209,55 @@ class NotificationService {
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
     );
+    
+    _addToHistory(title: title, body: body, payload: payload);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Predictive Alerts (Premium) ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Shows a high-priority alert notification when AI predicts a risky day.
-  ///
-  /// Premium feature — only sent if subscription is active.
-  /// Uses the high-priority notification channel (vibrates + sound).
   Future<void> sendPredictiveAlert({
     required String symptomName,
-    required double riskScore, // 0.0 – 1.0
+    required double riskScore,
   }) async {
     final riskPercent = (riskScore * 100).round();
     final id = _alertBaseId + (DateTime.now().millisecondsSinceEpoch % 100);
+    final title = '⚠️ $symptomName alert for today';
+    final body = 'AI predicts a $riskPercent% chance of $symptomName today. '
+          'Consider staying hydrated and managing stress.';
 
     await _plugin.show(
       id,
-      '⚠️ $symptomName alert for today',
-      'AI predicts a $riskPercent% chance of $symptomName today. '
-          'Consider staying hydrated and managing stress.',
+      title,
+      body,
       _notificationDetails(channel: _Channel.alert),
       payload: 'predictive_alert:$symptomName',
     );
+
+    _addToHistory(title: title, body: body, payload: 'predictive_alert:$symptomName');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Housekeeping ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Cancels all pending and shown notifications.
   Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
 
-  /// Returns the number of pending scheduled notifications.
-  Future<int> pendingNotificationCount() async {
-    final pending = await _plugin.pendingNotificationRequests();
-    return pending.length;
+  void _addToHistory({required String title, required String body, String? payload}) {
+    NotificationListNotifier.saveNotificationStatic(
+      title: title,
+      body: body,
+      payload: payload,
+    );
+    
+    if (_ref != null) {
+      _ref!.read(notificationListProvider.notifier).loadNotifications();
+    }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ── Private Helpers ──
-  // ══════════════════════════════════════════════════════════════════════════
-
-  /// Builds platform-specific notification details for a given channel.
   NotificationDetails _notificationDetails({required _Channel channel}) {
     final android = AndroidNotificationDetails(
       channel.id,
@@ -235,21 +277,11 @@ class NotificationService {
     return NotificationDetails(android: android, iOS: ios);
   }
 
-  /// Called when the user taps a notification.
-  /// Deep-links into the relevant screen based on the payload.
   void _onNotificationTapped(NotificationResponse response) {
-    final payload = response.payload;
-    if (payload == null) return;
-
-    // TODO: Use a global navigator key to push to the relevant screen
-    // Example routing:
-    // if (payload == 'daily_reminder')  → navigate to LoggingScreen
-    // if (payload.startsWith('symptom_log:')) → navigate to HomeScreen
-    // if (payload.startsWith('predictive_alert:')) → navigate to InsightsScreen
+    // History is already updated.
   }
 }
 
-/// Internal enum defining notification channels and their properties.
 enum _Channel {
   reminder(
     id: 'reminders',
