@@ -127,6 +127,8 @@ enum SymptomType {
   moodSwing,
   insomnia,
   skinIrritation,
+  stress,
+  pain,
   other,
 }
 
@@ -163,6 +165,10 @@ extension SymptomTypeDisplay on SymptomType {
         return 'Insomnia';
       case SymptomType.skinIrritation:
         return 'Skin Irritation';
+      case SymptomType.stress:
+        return 'Stress';
+      case SymptomType.pain:
+        return 'Pain';
       case SymptomType.other:
         return 'Other';
     }

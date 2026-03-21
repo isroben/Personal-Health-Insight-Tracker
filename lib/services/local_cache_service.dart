@@ -34,6 +34,7 @@ class LocalCacheService {
   static const String _correlationBox = 'correlations';
   static const String _userBox = 'user_profile';
   static const String _syncQueueBox = 'sync_queue';
+  static const String _settingsBox = 'settings';
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Initialisation ──
@@ -49,6 +50,7 @@ class LocalCacheService {
       Hive.openBox<String>(_correlationBox),
       Hive.openBox<String>(_userBox),
       Hive.openBox<String>(_syncQueueBox),
+      Hive.openBox<bool>(_settingsBox),
     ]);
   }
 
@@ -230,7 +232,24 @@ class LocalCacheService {
       Hive.box<String>(_correlationBox).clear(),
       Hive.box<String>(_userBox).clear(),
       Hive.box<String>(_syncQueueBox).clear(),
+      Hive.box<bool>(_settingsBox).clear(),
     ]);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── Settings & Flags ──
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Sets the onboarding completion status.
+  Future<void> setOnboardingCompleted(bool completed) async {
+    final box = Hive.box<bool>(_settingsBox);
+    await box.put('onboarding_completed', completed);
+  }
+
+  /// Returns whether the onboarding has been completed.
+  bool isOnboardingCompleted() {
+    final box = Hive.box<bool>(_settingsBox);
+    return box.get('onboarding_completed', defaultValue: false) ?? false;
   }
 
   // ── Private JSON helpers ──

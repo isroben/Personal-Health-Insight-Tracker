@@ -1,85 +1,124 @@
-/// ==========================================================================
-/// theme.dart — App Theme (Colors, Text Styles, Shapes)
-/// ==========================================================================
-/// Defines a clean, calm, health-friendly color palette.
-/// Primary: Soothing dark teal / green
-/// Secondary: Soft blue
-/// Includes accessible contrast ratios and large typography defaults.
-/// ==========================================================================
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // ── Color Palette ──
-  static const Color primarySeed = Color(0xFF0D6E6E); // Deep calming teal
-  static const Color secondaryColor = Color(0xFF4A90E2); // Soft blue
-  static const Color errorColor = Color(0xFFE57373); // Soft red for severity
+  static const Color primaryBlue = Color(0xFF4C9EEB); 
+  static const Color surfaceBackground = Color(0xFFFFFFFF);
+  static const Color cardShadow = Color(0x0A000000);
+  static const Color textMain = Color(0xFF1E293B);
+  static const Color textSecondary = Color(0xFF64748B);
+  static const Color boxcolor = Color(0xFFECF2F8);
 
   // ── Light Theme ──
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primarySeed,
-        secondary: secondaryColor,
-        error: errorColor,
+        seedColor: primaryBlue,
+        primary: primaryBlue,
+        surface: surfaceBackground,
+        onSurface: textMain,
+        onSurfaceVariant: textSecondary,
         brightness: Brightness.light,
       ),
-      textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
+      scaffoldBackgroundColor: surfaceBackground,
+      textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme).copyWith(
+        headlineLarge: GoogleFonts.outfit(
+          color: textMain,
+          fontWeight: FontWeight.bold,
+          fontSize: 28,
+          letterSpacing: -0.5,
+        ),
+        headlineMedium: GoogleFonts.outfit(
+          color: textMain,
+          fontWeight: FontWeight.bold,
+          fontSize: 24,
+          letterSpacing: -0.5,
+        ),
+        titleLarge: GoogleFonts.outfit(
+          color: textMain,
+          fontWeight: FontWeight.w600,
+          fontSize: 20,
+        ),
+        bodyLarge: GoogleFonts.inter(
+          color: textMain,
+          fontSize: 16,
+          height: 1.5,
+        ),
+        bodyMedium: GoogleFonts.inter(
+          color: textSecondary,
+          fontSize: 14,
+          height: 1.5,
+        ),
+      ),
       appBarTheme: const AppBarTheme(
+        backgroundColor: surfaceBackground,
         centerTitle: true,
         elevation: 0,
-        scrolledUnderElevation: 1,
+        scrolledUnderElevation: 0,
+        titleTextStyle: TextStyle(
+          color: textMain,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+        iconTheme: IconThemeData(color: textMain),
       ),
       cardTheme: CardThemeData(
-        elevation: 1,
+        elevation: 0,
+        color: boxcolor,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: Colors.black.withOpacity(0.06), width: 1.2),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+          backgroundColor: primaryBlue,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 32),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
-      navigationBarTheme: NavigationBarThemeData(
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        indicatorColor: primarySeed.withValues(alpha: 0.2),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.2)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: primaryBlue, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       ),
     );
   }
 
-  // ── Dark Theme ──
+  // ── Dark Theme (Basic adaptation) ──
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: primarySeed,
-        secondary: secondaryColor,
-        error: errorColor,
+        seedColor: primaryBlue,
         brightness: Brightness.dark,
       ),
-      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        elevation: 0,
-      ),
+      textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
       cardTheme: CardThemeData(
-        elevation: 2,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          borderRadius: BorderRadius.circular(24),
         ),
       ),
     );

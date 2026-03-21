@@ -12,9 +12,11 @@ import 'screens/log_history_screen.dart';
 import 'screens/insights_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
-import 'screens/auth_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/navigation_provider.dart';
+import 'providers/onboarding_provider.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/auth_screen.dart';
 
 class HealthInsightApp extends ConsumerWidget {
   const HealthInsightApp({super.key});
@@ -28,9 +30,13 @@ class HealthInsightApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       home: authState.when(
-        data: (user) => user == null ? const AuthScreen() : const MainShell(),
+        data: (user) {
+          final onboardingCompleted = ref.watch(onboardingProvider);
+          if (!onboardingCompleted) return const OnboardingScreen();
+          return user == null ? const AuthScreen() : const MainShell();
+        },
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (e, _) => Scaffold(body: Center(child: Text('Auth Error: $e'))),
       ),

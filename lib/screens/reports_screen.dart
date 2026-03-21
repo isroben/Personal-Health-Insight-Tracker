@@ -1,15 +1,6 @@
-/// ==========================================================================
-/// reports_screen.dart — PDF Reports Screen
-/// ==========================================================================
-/// Allows generation of doctor-ready reports.
-/// Features:
-/// - Date range picker (Last 7 days, 30 days, Custom)
-/// - Preview generic report mockup
-/// - Big Share Action button
-/// ==========================================================================
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../providers/report_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/user_model.dart';
@@ -23,21 +14,7 @@ class ReportsScreen extends ConsumerStatefulWidget {
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   String _selectedRange = 'Last 30 Days';
-  final List<String> _ranges = ['Last 7 Days', 'Last 30 Days', 'This Month', 'Custom...'];
-
-  DateTime get _startDate {
-    final now = DateTime.now();
-    switch (_selectedRange) {
-      case 'Last 7 Days':
-        return now.subtract(const Duration(days: 7));
-      case 'Last 30 Days':
-        return now.subtract(const Duration(days: 30));
-      case 'This Month':
-        return DateTime(now.year, now.month, 1);
-      default:
-        return now.subtract(const Duration(days: 30));
-    }
-  }
+  final List<String> _ranges = ['Last 7 Days', 'Last 30 Days', 'This Month', 'Last 3 Months'];
 
   @override
   Widget build(BuildContext context) {
@@ -47,168 +24,214 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Doctor Reports'),
+        title: const Text('Health Reports'),
         centerTitle: false,
-        actions: [
-          if (ref.watch(authStateProvider).value?.subscription == SubscriptionTier.premium)
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade700,
-                  borderRadius: BorderRadius.circular(8),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Doctor-friendly health summary', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 24),
+            
+            // Filter Dropdown
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.withOpacity(0.1)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedRange,
+                  isExpanded: true,
+                  items: _ranges.map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) {
+                    setState(() => _selectedRange = newValue!);
+                  },
                 ),
-                child: const Row(
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Summary Stats
+            Row(
+              children: [
+                _buildStatCard(context, 'Total Logs', '156', Colors.blue),
+                const SizedBox(width: 12),
+                _buildStatCard(context, 'Avg Score', '78', Colors.green),
+                const SizedBox(width: 12),
+                _buildStatCard(context, 'Improvement', '+15%', Colors.orange),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            // 3-Month Overview
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.workspace_premium, color: Colors.white, size: 14),
-                    SizedBox(width: 4),
-                    Text(
-                      'PREMIUM',
-                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    Text('3-Month Overview', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildLegendItem(context, 'Good Days', Colors.green),
+                        const SizedBox(width: 16),
+                        _buildLegendItem(context, 'Challenging Days', Colors.orange),
+                      ],
                     ),
+                    const SizedBox(height: 24),
+                    SizedBox(height: 160, child: _buildOverviewChart()),
                   ],
                 ),
               ),
             ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Generate a comprehensive PDF report of your symptoms, lifestyle factors, and detected correlations to share with your healthcare provider.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey.shade700,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // ── Configurations ──
-              Text(
-                'Report Configuration',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Card(
-                elevation: 0,
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: Icon(Icons.calendar_month, color: theme.colorScheme.primary),
-                      title: const Text('Date Range'),
-                      trailing: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedRange,
-                          items: _ranges.map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
-                          onChanged: (newValue) {
-                            setState(() {
-                              _selectedRange = newValue!;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                    const Divider(height: 1, indent: 56),
-                    ListTile(
-                      leading: Icon(Icons.tune, color: theme.colorScheme.primary),
-                      title: const Text('Include Charts & Graphs'),
-                      trailing: Switch(
-                        value: true,
-                        onChanged: (val) {
-                          // TODO: Implement toggle
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // ── Preview Area ──
-              Text(
-                'Report Preview',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade300),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withValues(alpha: 0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.description, size: 64, color: Colors.grey.shade300),
-                        const SizedBox(height: 16),
-                        Text(
-                          reportState.isLoading ? 'Generating PDF...' : 'Ready to export',
-                          style: TextStyle(color: Colors.grey.shade500),
-                        ),
-                        if (reportState.hasError) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Error: ${reportState.error}',
-                            style: const TextStyle(color: Colors.red, fontSize: 12),
-                          ),
-                        ],
-                      ],
-                    ),
+            const SizedBox(height: 24),
+            
+            // Key Findings
+            Text('Key Findings', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            _buildFindingItem('Symptom frequency decreased by 12% compared to last month.'),
+            _buildFindingItem('Strong correlation found between sleep quality and migraine frequency.'),
+            _buildFindingItem('Stress levels peak during mid-week, affecting overall wellness.'),
+            const SizedBox(height: 32),
+            
+            // Export Options
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.share_outlined),
+                    label: const Text('Share'),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-
-              // ── Generate Button ──
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: reportState.isLoading
-                      ? null
-                      : () {
-                          ref.read(reportProvider.notifier).generateAndShareReport(
-                                startDate: _startDate,
-                                endDate: DateTime.now(),
-                              );
-                        },
-                  icon: reportState.isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.ios_share),
-                  label: Text(
-                    reportState.isLoading ? 'Generating...' : 'Generate & Share PDF',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      final now = DateTime.now();
+                      ref.read(reportProvider.notifier).generateAndShareReport(
+                        startDate: now.subtract(const Duration(days: 30)),
+                        endDate: now,
+                      );
+                    },
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    label: const Text('Export PDF'),
+                    style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
+              ],
+            ),
+            const SizedBox(height: 40),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(BuildContext context, String label, String value, Color color) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.1)),
+        ),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontSize: 10, color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(BuildContext context, String label, Color color) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+      ],
+    );
+  }
+
+  Widget _buildOverviewChart() {
+    return BarChart(
+      BarChartData(
+        barTouchData: BarTouchData(enabled: false),
+        titlesData: FlTitlesData(
+          show: true,
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                const months = ['Jan', 'Feb', 'Mar'];
+                if (value.toInt() >= 0 && value.toInt() < months.length) {
+                  return SideTitleWidget(
+                    meta: meta,
+                    child: Text(months[value.toInt()], style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+              reservedSize: 30,
+            ),
+          ),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        barGroups: [
+          BarChartGroupData(x: 0, barRods: [
+            BarChartRodData(toY: 20, color: Colors.green, width: 24, borderRadius: BorderRadius.circular(4)),
+            BarChartRodData(toY: 6, color: Colors.orange, width: 24, borderRadius: BorderRadius.circular(4)),
+          ]),
+          BarChartGroupData(x: 1, barRods: [
+            BarChartRodData(toY: 18, color: Colors.green, width: 24, borderRadius: BorderRadius.circular(4)),
+            BarChartRodData(toY: 8, color: Colors.orange, width: 24, borderRadius: BorderRadius.circular(4)),
+          ]),
+          BarChartGroupData(x: 2, barRods: [
+            BarChartRodData(toY: 24, color: Colors.green, width: 24, borderRadius: BorderRadius.circular(4)),
+            BarChartRodData(toY: 4, color: Colors.orange, width: 24, borderRadius: BorderRadius.circular(4)),
+          ]),
+        ],
+        maxY: 30,
+      ),
+    );
+  }
+
+  Widget _buildFindingItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 6.0),
+            child: Icon(Icons.circle, size: 6, color: Colors.blue),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 13, height: 1.4))),
+        ],
       ),
     );
   }

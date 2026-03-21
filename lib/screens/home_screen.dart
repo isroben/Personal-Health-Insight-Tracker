@@ -1,14 +1,3 @@
-/// ==========================================================================
-/// home_screen.dart — Dashboard / Landing Screen
-/// ==========================================================================
-/// The primary dashboard displaying:
-/// - Health Score (Gamification/vibe check)
-/// - Trend arrows (improving/declining)
-/// - Symptom summary (recent logs)
-///
-/// Features clean animations and premium styling.
-/// ==========================================================================
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -16,8 +5,6 @@ import '../providers/gamification_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/symptom_provider.dart';
 import '../providers/navigation_provider.dart';
-import '../providers/notification_provider.dart';
-import '../routes/app_router.dart';
 import '../models/symptom_log.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -26,208 +13,211 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final authState = ref.watch(authStateProvider);
-    final user = authState.valueOrNull;
-    final notifications = ref.watch(notificationListProvider);
-    final unreadCount = notifications.where((n) => !n.isRead).length;
+    final user = ref.watch(authStateProvider).valueOrNull;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth > 900;
+    final isTablet = screenWidth > 600 && screenWidth <= 900;
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        centerTitle: false, 
-        actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_none),
-                onPressed: () {
-                  Navigator.pushNamed(context, AppRouter.notificationsRoute);
-                },
-                tooltip: 'Notifications',
-              ),
-              if (unreadCount > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '$unreadCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 8),
-          const CircleAvatar(
-            radius: 16,
-            child: Icon(Icons.person, size: 20),
-          ),
-          const SizedBox(width: 16),
-        ],
-      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
             if (user != null) {
               ref.invalidate(wellnessScoreProvider(user.id));
-              ref.invalidate(streakProvider(user.id));
               ref.read(symptomLogsProvider.notifier).fetchLogs(user.id);
             }
           },
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.symmetric(
+              horizontal: isDesktop ? screenWidth * 0.1 : 20,
+              vertical: 24,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Greeting & Date ──
+                _buildHeader(user?.name ?? 'Sarah', theme),
+                const SizedBox(height: 32),
+                _HealthScoreCard(userId: user?.id),
+                const SizedBox(height: 32),
                 Text(
-                  'Good morning, ${user?.name.split(' ')[0] ?? 'Explorer'}',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
+                  "Today's Summary",
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 16),
+                _buildSummaryGrid(isDesktop, isTablet),
+                const SizedBox(height: 32),
                 Text(
-                  DateFormat('EEEE, MMMM dd').format(DateTime.now()),
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey.shade600,
-                  ),
+                  "Today's Activity",
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 24),
-
-                // ── Health Score Card ──
-                if (user != null)
-                   _HealthScoreCard(userId: user.id)
-                else
-                   const _HealthScoreCard(), // Fallback/Loading
-                
-                const SizedBox(height: 24),
-
-                // ── Recent Logs Summary ──
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Recent Logs',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        // Switch to History tab in the bottom navigation bar
-                        ref.read(bottomNavIndexProvider.notifier).state = 1;
-                      },
-                      child: const Text('See all'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _buildRecentLogsColumn(ref, theme),
-                const SizedBox(height: 100), // Space for FAB
+                const SizedBox(height: 16),
+                _buildActivityTimeline(ref, theme),
               ],
             ),
           ),
         ),
       ),
-      // ── Quick Log FAB ──
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Open Log screen directly
-          Navigator.pushNamed(context, AppRouter.logRoute);
+          // Typically open logging screen
+          ref.read(bottomNavIndexProvider.notifier).state = 1;
         },
         backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
-        icon: const Icon(Icons.add),
-        label: const Text(
-          'Log Entry',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
-  Widget _buildRecentLogsColumn(WidgetRef ref, ThemeData theme) {
+  Widget _buildHeader(String name, ThemeData theme) {
+    final hour = DateTime.now().hour;
+    String greeting = 'Good Morning';
+    if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
+    if (hour >= 17) greeting = 'Good Evening';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          greeting,
+          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          name.split(' ')[0],
+          style: theme.textTheme.headlineLarge,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryGrid(bool isDesktop, bool isTablet) {
+    int crossAxisCount = 2;
+    if (isDesktop) crossAxisCount = 4;
+    else if (isTablet) crossAxisCount = 3;
+
+    final summaryItems = [
+      _SummaryItem(label: 'Sleep', value: '7.5h', icon: Icons.nightlight_round, color: Colors.indigo),
+      _SummaryItem(label: 'Hydration', value: '6/8', icon: Icons.water_drop, color: Colors.cyan),
+      _SummaryItem(label: 'Stress', value: 'Low', icon: Icons.bolt, color: Colors.orange),
+      _SummaryItem(label: 'Exercise', value: '30min', icon: Icons.fitness_center, color: Colors.blueAccent),
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 1.3,
+      ),
+      itemCount: summaryItems.length,
+      itemBuilder: (context, index) {
+        final item = summaryItems[index];
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: item.color.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(item.icon, size: 20, color: item.color),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.label, style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      item.value,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActivityTimeline(WidgetRef ref, ThemeData theme) {
     final logsAsync = ref.watch(symptomLogsProvider);
 
     return logsAsync.when(
       data: (logs) {
         if (logs.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(Icons.history_toggle_off, size: 48, color: theme.disabledColor),
-                  const SizedBox(height: 8),
-                  const Text('No recent logs. Start tracking!'),
-                ],
-              ),
-            ),
-          );
+          return const Center(child: Text('No activity today.'));
         }
-        // Show only the 3 most recent logs
-        final recentLogs = logs.take(3).toList();
-        return Column(
-          children: recentLogs.map((log) => _buildLogItem(log, theme)).toList(),
+        final todayLogs = logs.take(4).toList(); // Show a few
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: List.generate(todayLogs.length, (index) {
+                final log = todayLogs[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          if (index != todayLogs.length - 1)
+                            Container(
+                              width: 2,
+                              height: 40,
+                              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              DateFormat('h:mm a').format(log.date),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${log.symptomType.displayName} logged',
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
+                            if (log.notes != null && log.notes!.isNotEmpty)
+                              Text(
+                                log.notes!,
+                                style: theme.textTheme.bodySmall,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Text('Error loading logs: $err'),
+      error: (e, _) => Text('Error: $e'),
     );
-  }
-
-  Widget _buildLogItem(SymptomLog log, ThemeData theme) {
-    final timeStr = _formatRelativeTime(log.date);
-
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-          child: Icon(Icons.medical_services_outlined,
-              color: theme.colorScheme.primary),
-        ),
-        title: Text(log.symptomType.displayName, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('Severity: ${log.severity}/10'),
-        trailing: Text(timeStr, style: theme.textTheme.bodySmall),
-      ),
-    );
-  }
-
-  String _formatRelativeTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} mins ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} hrs ago';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else {
-      return DateFormat('MMM dd').format(dateTime);
-    }
   }
 }
 
@@ -238,146 +228,85 @@ class _HealthScoreCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    
-    // Watch dynamic data
     final scoreAsync = userId != null 
         ? ref.watch(wellnessScoreProvider(userId!))
-        : const AsyncValue<int>.data(82); // Fallback
-        
-    final streakAsync = userId != null
-        ? ref.watch(streakProvider(userId!))
-        : const AsyncValue<int>.data(5);
-
+        : const AsyncValue<int>.data(78); 
+    
     final score = scoreAsync.value ?? 0;
-    final streak = streakAsync.value ?? 0;
-    const isImproving = true; // Still mocked for UI demo
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.primary.withValues(alpha: 0.8),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -20,
-            top: -20,
-            child: Icon(
-              Icons.health_and_safety,
-              size: 120,
-              color: Colors.white.withValues(alpha: 0.1),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Health Score',
+                    style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        '$score',
+                        style: theme.textTheme.displayLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text('/100', style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Improving this week',
+                        style: theme.textTheme.bodySmall?.copyWith(color: Colors.green, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Wellness Score',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (streak > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.fireplace, color: Colors.orange, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$streak Day Streak',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '$score',
-                    style: theme.textTheme.displayLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '/ 100',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: Colors.white70,
-                      height: 1.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isImproving ? Icons.trending_up : Icons.trending_down,
-                          color: isImproving ? Colors.greenAccent : Colors.redAccent,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isImproving ? '+5% this week' : '-2% this week',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                score >= 80 
-                  ? 'Excellent job! Your consistency is paying off.' 
-                  : 'You\'re on the right track! Try logging more lifestyle details.',
-                style: const TextStyle(color: Colors.white, height: 1.4),
-              ),
-            ],
-          ),
-        ],
+              child: const Icon(Icons.trending_up, color: Colors.green, size: 40),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _SummaryItem {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  _SummaryItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
 }
