@@ -185,14 +185,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const SizedBox(height: 16),
         const Text('Gender', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          decoration: const InputDecoration(),
-          hint: Text('Select gender', style: TextStyle(color: Colors.grey.shade400)),
-          items: ['Male', 'Female', 'Other']
-              .map((label) => DropdownMenuItem(value: label, child: Text(label)))
-              .toList(),
-          onChanged: (value) {},
-        ),
+        // DropdownButtonFormField<String>(
+        //   decoration: const InputDecoration(),
+        //   hint: Text('Select gender', style: TextStyle(color: Colors.grey.shade400)),
+        //   items: ['Male', 'Female', 'Other']
+        //       .map((label) => DropdownMenuItem(value: label, child: Text(label)))
+        //       .toList(),
+        //   onChanged: (value) {},
+        // ),
         const SizedBox(height: 16),
         const Text('Health Conditions (Optional)', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
