@@ -91,6 +91,7 @@ class LoggingNotifier extends StateNotifier<AsyncValue<LogResult?>> {
     double sleepHours = 0,
     double waterIntakeLitres = 0,
     int exerciseMinutes = 0,
+    int screenTimeMinutes = 0,
     String mood = '',
     double stressLevel = 5,
     String? notes,
@@ -105,6 +106,7 @@ class LoggingNotifier extends StateNotifier<AsyncValue<LogResult?>> {
         sleepHours: sleepHours,
         waterIntakeLitres: waterIntakeLitres,
         exerciseMinutes: exerciseMinutes,
+        screenTimeMinutes: screenTimeMinutes,
         mood: mood,
         stressLevel: stressLevel,
         notes: notes,
@@ -126,6 +128,7 @@ class LoggingNotifier extends StateNotifier<AsyncValue<LogResult?>> {
     required String dietQualityName,
     required int hydrationGlasses,
     required int exerciseMinutes,
+    required int screenTimeMinutes,
     required double stressLevel,
     String? notes,
   }) async {
@@ -138,6 +141,7 @@ class LoggingNotifier extends StateNotifier<AsyncValue<LogResult?>> {
         dietQualityName: dietQualityName,
         hydrationGlasses: hydrationGlasses,
         exerciseMinutes: exerciseMinutes,
+        screenTimeMinutes: screenTimeMinutes,
         stressLevel: stressLevel,
         notes: notes,
       );

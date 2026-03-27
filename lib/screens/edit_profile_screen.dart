@@ -81,7 +81,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 600)/2 : 24.0, 
+          vertical: 24.0
+        ),
         child: Form(
           key: _formKey,
           child: Column(

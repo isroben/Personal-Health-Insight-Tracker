@@ -19,6 +19,7 @@ class HealthLog {
   final double sleepHours;    // hours of sleep last night
   final double waterIntake;   // litres consumed
   final int exerciseMinutes;  // minutes of exercise
+  final int screenTimeMinutes; // minutes of screen time
   final String mood;          // e.g. "good", "tired", "anxious"
   final int stressLevel;      // 1–10
   final String? notes;
@@ -32,6 +33,7 @@ class HealthLog {
     required this.sleepHours,
     required this.waterIntake,
     required this.exerciseMinutes,
+    required this.screenTimeMinutes,
     required this.mood,
     required this.stressLevel,
     this.notes,
@@ -50,6 +52,7 @@ class HealthLog {
       sleepHours: (json['sleep_hours'] as num?)?.toDouble() ?? 0.0,
       waterIntake: (json['water_intake'] as num?)?.toDouble() ?? 0.0,
       exerciseMinutes: (json['exercise_minutes'] as num?)?.toInt() ?? 0,
+      screenTimeMinutes: (json['screen_time_minutes'] as num?)?.toInt() ?? 0,
       mood: json['mood'] as String? ?? '',
       stressLevel: (json['stress_level'] as num?)?.toInt() ?? 0,
       notes: json['notes'] as String?,
@@ -67,6 +70,7 @@ class HealthLog {
       'sleep_hours': sleepHours,
       'water_intake': waterIntake,
       'exercise_minutes': exerciseMinutes,
+      'screen_time_minutes': screenTimeMinutes,
       'mood': mood,
       'stress_level': stressLevel,
       if (notes != null) 'notes': notes,
@@ -104,6 +108,7 @@ class HealthLog {
     double? sleepHours,
     double? waterIntake,
     int? exerciseMinutes,
+    int? screenTimeMinutes,
     String? mood,
     int? stressLevel,
     String? notes,
@@ -117,6 +122,7 @@ class HealthLog {
       sleepHours: sleepHours ?? this.sleepHours,
       waterIntake: waterIntake ?? this.waterIntake,
       exerciseMinutes: exerciseMinutes ?? this.exerciseMinutes,
+      screenTimeMinutes: screenTimeMinutes ?? this.screenTimeMinutes,
       mood: mood ?? this.mood,
       stressLevel: stressLevel ?? this.stressLevel,
       notes: notes ?? this.notes,

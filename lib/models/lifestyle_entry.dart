@@ -19,6 +19,7 @@ class LifestyleEntry {
   final DietQuality diet;
   final int hydrationGlasses; // number of glasses of water
   final int exerciseMinutes; // minutes of exercise
+  final int screenTimeMinutes; // minutes of screen time
   final int stressLevel; // 1 (relaxed) to 10 (extremely stressed)
   final String? notes;
   final DateTime createdAt;
@@ -32,6 +33,7 @@ class LifestyleEntry {
     required this.diet,
     required this.hydrationGlasses,
     required this.exerciseMinutes,
+    required this.screenTimeMinutes,
     required this.stressLevel,
     this.notes,
     required this.createdAt,
@@ -58,6 +60,7 @@ class LifestyleEntry {
       ),
       hydrationGlasses: map['hydrationGlasses'] as int,
       exerciseMinutes: map['exerciseMinutes'] as int,
+      screenTimeMinutes: map['screenTimeMinutes'] as int? ?? 0,
       stressLevel: map['stressLevel'] as int,
       notes: map['notes'] as String?,
       createdAt: _parseDate(map['createdAt']),
@@ -75,6 +78,7 @@ class LifestyleEntry {
       'diet': diet.name,
       'hydrationGlasses': hydrationGlasses,
       'exerciseMinutes': exerciseMinutes,
+      'screenTimeMinutes': screenTimeMinutes,
       'stressLevel': stressLevel,
       'notes': notes,
       'createdAt': createdAt.toIso8601String(),
@@ -99,6 +103,7 @@ class LifestyleEntry {
     DietQuality? diet,
     int? hydrationGlasses,
     int? exerciseMinutes,
+    int? screenTimeMinutes,
     int? stressLevel,
     String? notes,
     DateTime? createdAt,
@@ -112,6 +117,7 @@ class LifestyleEntry {
       diet: diet ?? this.diet,
       hydrationGlasses: hydrationGlasses ?? this.hydrationGlasses,
       exerciseMinutes: exerciseMinutes ?? this.exerciseMinutes,
+      screenTimeMinutes: screenTimeMinutes ?? this.screenTimeMinutes,
       stressLevel: stressLevel ?? this.stressLevel,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,

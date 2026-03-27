@@ -65,7 +65,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             _buildPageIndicator(),
             const SizedBox(height: 32),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.of(context).size.width > 600 
+                  ? (MediaQuery.of(context).size.width - 600) / 2 
+                  : 24.0
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -111,8 +115,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Widget _buildPage(OnboardingData data) {
     final theme = Theme.of(context);
+    final sw = MediaQuery.of(context).size.width;
     return Padding(
-      padding: const EdgeInsets.all(32.0),
+      padding: EdgeInsets.symmetric(horizontal: sw > 600 ? (sw - 600)/2 : 32.0, vertical: 32.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

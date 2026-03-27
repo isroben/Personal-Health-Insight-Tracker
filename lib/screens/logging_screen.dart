@@ -31,6 +31,8 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
   final TextEditingController _waterCtrl = TextEditingController(text: '0.0');
   final TextEditingController _exerciseHoursCtrl = TextEditingController(text: '0');
   final TextEditingController _exerciseMinsCtrl = TextEditingController(text: '0');
+  final TextEditingController _screentimeCtrl = TextEditingController(text: '0');
+  final TextEditingController _screentimeMinsCtrl = TextEditingController(text: '0');
 
   @override
   void dispose() {
@@ -40,8 +42,11 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
     _sleepMinsCtrl.dispose();
     _mealsCtrl.dispose();
     _waterCtrl.dispose();
+    _waterCtrl.dispose();
     _exerciseHoursCtrl.dispose();
     _exerciseMinsCtrl.dispose();
+    _screentimeCtrl.dispose();
+    _screentimeMinsCtrl.dispose();
     super.dispose();
   }
 
@@ -79,6 +84,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
     double parsedSleep = (double.tryParse(_sleepHoursCtrl.text) ?? 0.0) + ((double.tryParse(_sleepMinsCtrl.text) ?? 0.0) / 60.0);
     double parsedWater = double.tryParse(_waterCtrl.text) ?? 0.0;
     int parsedExercise = ((int.tryParse(_exerciseHoursCtrl.text) ?? 0) * 60) + (int.tryParse(_exerciseMinsCtrl.text) ?? 0);
+    int parsedScreenTime = ((int.tryParse(_screentimeCtrl.text) ?? 0) * 60) + (int.tryParse(_screentimeMinsCtrl.text) ?? 0);
 
     if (_selectedSymptomType != null) {
       // Combined Symptom + Lifestyle log
@@ -89,6 +95,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
         sleepHours: parsedSleep,
         waterIntakeLitres: parsedWater * 0.25, // Convert glasses to litres
         exerciseMinutes: parsedExercise,
+        screenTimeMinutes: parsedScreenTime,
         notes: _notesController.text,
       );
     } else {
@@ -99,6 +106,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
         dietQualityName: 'balanced', 
         hydrationGlasses: parsedWater.toInt(),
         exerciseMinutes: parsedExercise,
+        screenTimeMinutes: parsedScreenTime,
         stressLevel: 5.0,
       );
     }
@@ -147,7 +155,12 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.of(context).size.width > 600 
+              ? (MediaQuery.of(context).size.width - 600) / 2 
+              : 24.0,
+            vertical: 24.0,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -173,11 +186,42 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
       {'type': SymptomType.fatigue, 'icon': Icons.coffee, 'color': Colors.green},
       {'type': SymptomType.stress, 'icon': Icons.bolt, 'color': Colors.orange},
       {'type': SymptomType.pain, 'icon': Icons.favorite, 'color': Colors.red},
+      
+      {'type': SymptomType.fever, 'icon': Icons.thermostat, 'color': Colors.redAccent},
+      {'type': SymptomType.dizziness, 'icon': Icons.rotate_right, 'color': Colors.orange},
+      {'type': SymptomType.nausea, 'icon': Icons.sick, 'color': Colors.greenAccent},
+      {'type': SymptomType.cough, 'icon': Icons.masks, 'color': Colors.teal},
+      {'type': SymptomType.coldFlu, 'icon': Icons.ac_unit, 'color': Colors.lightBlue},
+      {'type': SymptomType.muscleSoreness, 'icon': Icons.fitness_center, 'color': Colors.deepOrange},
+      {'type': SymptomType.jointPain, 'icon': Icons.accessibility, 'color': Colors.deepOrangeAccent},
+      {'type': SymptomType.stomachPain, 'icon': Icons.restaurant, 'color': Colors.brown},
+      {'type': SymptomType.chestDiscomfort, 'icon': Icons.monitor_heart, 'color': Colors.red},
+      {'type': SymptomType.shortnessOfBreath, 'icon': Icons.air, 'color': Colors.cyan},
+      {'type': SymptomType.allergySymptoms, 'icon': Icons.local_florist, 'color': Colors.green},
+      {'type': SymptomType.eyeStrain, 'icon': Icons.remove_red_eye, 'color': Colors.blueGrey},
+      {'type': SymptomType.backPain, 'icon': Icons.airline_seat_recline_extra, 'color': Colors.orangeAccent},
+      {'type': SymptomType.sleepiness, 'icon': Icons.bedtime, 'color': Colors.indigo},
+      {'type': SymptomType.lowEnergy, 'icon': Icons.battery_alert, 'color': Colors.redAccent},
+      
+      {'type': SymptomType.happy, 'icon': Icons.sentiment_very_satisfied, 'color': Colors.yellow},
+      {'type': SymptomType.calm, 'icon': Icons.spa, 'color': Colors.tealAccent},
+      {'type': SymptomType.motivated, 'icon': Icons.rocket_launch, 'color': Colors.orange},
+      {'type': SymptomType.focused, 'icon': Icons.center_focus_strong, 'color': Colors.blue},
+      {'type': SymptomType.relaxed, 'icon': Icons.weekend, 'color': Colors.lightGreen},
+      {'type': SymptomType.anxious, 'icon': Icons.sentiment_dissatisfied, 'color': Colors.purple},
+      {'type': SymptomType.irritated, 'icon': Icons.sentiment_very_dissatisfied, 'color': Colors.red},
+      {'type': SymptomType.overwhelmed, 'icon': Icons.waves, 'color': Colors.blueAccent},
+      {'type': SymptomType.sad, 'icon': Icons.water_drop, 'color': Colors.blueGrey},
+      {'type': SymptomType.burnout, 'icon': Icons.local_fire_department, 'color': Colors.deepOrange},
+      {'type': SymptomType.confident, 'icon': Icons.military_tech, 'color': Colors.amber},
+      {'type': SymptomType.grateful, 'icon': Icons.favorite_border, 'color': Colors.pinkAccent},
+
       {'type': SymptomType.other, 'icon': Icons.more_horiz, 'color': Colors.purple},
     ];
 
+    final sw = MediaQuery.of(context).size.width;
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.symmetric(horizontal: sw > 600 ? (sw - 600)/2 : 24.0, vertical: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -185,11 +229,11 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
           const SizedBox(height: 24),
           Expanded(
             child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.2,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: sw > 800 ? 5 : (sw > 600 ? 4 : 3),
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.85,
               ),
               itemCount: items.length,
               itemBuilder: (context, index) {
@@ -200,10 +244,10 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
                 return GestureDetector(
                   onTap: () => setState(() => _selectedSymptomType = type),
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: isSelected ? Colors.blue.withValues(alpha: isDark ? 0.2 : 0.05) : (theme.cardTheme.color ?? Colors.white),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isSelected ? Colors.blue : Colors.grey.withValues(alpha: 0.1),
                         width: isSelected ? 2 : 1,
@@ -213,17 +257,25 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: item['color'].withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(item['icon'], color: item['color'], size: 28),
+                          child: Icon(item['icon'], color: item['color'], size: 24),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         Text(
                           type.displayName,
-                          style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Colors.black87,
+                            height: 1.1,
+                          ),
                         ),
                       ],
                     ),
@@ -242,8 +294,9 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
     if (_severity < 4) severityLabel = 'Mild';
     if (_severity > 7) severityLabel = 'Severe';
 
+    final sw = MediaQuery.of(context).size.width;
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.symmetric(horizontal: sw > 600 ? (sw - 600)/2 : 24.0, vertical: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -290,8 +343,9 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
 
   Widget _buildLifestyleFactors(ThemeData theme) {
     final isDark = theme.brightness == Brightness.dark;
+    final sw = MediaQuery.of(context).size.width;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.symmetric(horizontal: sw > 600 ? (sw - 600)/2 : 24.0, vertical: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -303,6 +357,14 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
             Icons.nightlight_round,
             Colors.blue,
             _buildTimeInput(_sleepHoursCtrl, _sleepMinsCtrl, isDark),
+            isDark: isDark,
+          ),
+          _buildLifestyleTile(
+            'Screen Time',
+            'Time spent in front of screen',
+            Icons.computer,
+            Colors.blue,
+            _buildTimeInput(_screentimeCtrl, _screentimeMinsCtrl, isDark),
             isDark: isDark,
           ),
           _buildLifestyleTile(
@@ -420,8 +482,9 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
   }
 
   Widget _buildNotesSelection(ThemeData theme) {
+    final sw = MediaQuery.of(context).size.width;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: EdgeInsets.symmetric(horizontal: sw > 600 ? (sw - 600)/2 : 24.0, vertical: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

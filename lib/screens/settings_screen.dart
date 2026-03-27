@@ -76,7 +76,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         toolbarHeight: 60,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+        padding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.of(context).size.width > 800 ? (MediaQuery.of(context).size.width - 800)/2 : 16.0, 
+          vertical: 24.0
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -35,7 +35,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       ),
       body: summaryAsync.when(
         data: (summary) => SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.of(context).size.width > 800 ? (MediaQuery.of(context).size.width - 800)/2 : 24.0, 
+            vertical: 24.0
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

@@ -158,12 +158,14 @@ class GamificationService {
         'hydration': 0.0,
         'stress': 'N/A',
         'exercise': 0,
+        'screen_time': 0,
       };
     }
 
     double totalSleep = 0;
     double totalWater = 0;
     int totalExercise = 0;
+    int totalScreenTime = 0;
     int totalStress = 0;
     int stressCount = 0;
 
@@ -171,6 +173,7 @@ class GamificationService {
       if (l.sleepHours > 0) totalSleep = l.sleepHours; 
       totalWater += l.waterIntake;
       totalExercise += l.exerciseMinutes;
+      totalScreenTime += l.screenTimeMinutes;
       if (l.stressLevel > 0) {
         totalStress += l.stressLevel;
         stressCount++;
@@ -190,6 +193,7 @@ class GamificationService {
       'hydration': totalWater,
       'stress': stressLabel,
       'exercise': totalExercise,
+      'screen_time': totalScreenTime,
     };
   }
 

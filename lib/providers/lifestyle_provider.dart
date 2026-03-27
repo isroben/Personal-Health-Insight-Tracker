@@ -74,6 +74,7 @@ class LifestyleEntriesNotifier
       diet: DietQuality.fair, // Diet quality not currently split in HealthLog
       hydrationGlasses: (hl.waterIntake / 0.25).round(),
       exerciseMinutes: hl.exerciseMinutes,
+      screenTimeMinutes: hl.screenTimeMinutes,
       stressLevel: hl.stressLevel,
       notes: hl.notes,
       createdAt: hl.createdAt,

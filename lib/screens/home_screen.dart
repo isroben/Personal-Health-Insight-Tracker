@@ -31,7 +31,7 @@ class HomeScreen extends ConsumerWidget {
           },
           child: SingleChildScrollView(
             padding: EdgeInsets.symmetric(
-              horizontal: isDesktop ? screenWidth * 0.1 : 20,
+              horizontal: screenWidth > 800 ? (screenWidth - 800)/2 : 20,
               vertical: 24,
             ),
             child: Column(
@@ -99,14 +99,15 @@ class HomeScreen extends ConsumerWidget {
 
     return summaryAsync.when(
       data: (data) {
-        int crossAxisCount = 2;
-        if (isDesktop) crossAxisCount = 4;
-        else if (isTablet) crossAxisCount = 3;
+        int crossAxisCount = 3;
+        if (isDesktop) crossAxisCount = 5;
+        else if (isTablet) crossAxisCount = 4;
 
         final sleepHours = data['sleep'] as double;
         final hydrationLitres = data['hydration'] as double;
         final stressLabel = data['stress'] as String;
         final exerciseMins = data['exercise'] as int;
+        final screenTimeMins = data['screen_time'] as int? ?? 0;
 
         final summaryItems = [
           _SummaryItem(
@@ -117,7 +118,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           _SummaryItem(
             label: 'Hydration', 
-            value: '${(hydrationLitres / 0.25).round()}/8', // Converting back to glasses for display
+            value: '${(hydrationLitres / 0.25).round()}/8', 
             icon: Icons.water_drop, 
             color: Colors.cyan
           ),
@@ -129,9 +130,17 @@ class HomeScreen extends ConsumerWidget {
           ),
           _SummaryItem(
             label: 'Exercise', 
-            value: '${exerciseMins}min', 
+            value: '${exerciseMins}m', 
             icon: Icons.fitness_center, 
             color: Colors.blueAccent
+          ),
+          _SummaryItem(
+            label: 'Screen', 
+            value: screenTimeMins > 60 
+                ? '${(screenTimeMins / 60).floor()}h ${screenTimeMins % 60}m'
+                : '${screenTimeMins}m', 
+            icon: Icons.computer, 
+            color: Colors.purple
           ),
         ];
 
@@ -140,37 +149,33 @@ class HomeScreen extends ConsumerWidget {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.85,
           ),
           itemCount: summaryItems.length,
           itemBuilder: (context, index) {
             final item = summaryItems[index];
             return Card(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: item.color.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(item.icon, size: 20, color: item.color),
+                      child: Icon(item.icon, size: 16, color: item.color),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.label, style: Theme.of(context).textTheme.bodySmall),
-                        Text(
-                          item.value,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(item.label, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10)),
+                    Text(
+                      item.value,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ],
                 ),

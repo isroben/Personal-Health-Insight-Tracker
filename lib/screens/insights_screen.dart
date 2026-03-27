@@ -44,7 +44,10 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
         onRefresh: _onRefresh,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.of(context).size.width > 800 ? (MediaQuery.of(context).size.width - 800)/2 : 24.0, 
+            vertical: 24.0
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

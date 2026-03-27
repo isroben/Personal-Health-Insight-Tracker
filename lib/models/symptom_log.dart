@@ -129,6 +129,29 @@ enum SymptomType {
   skinIrritation,
   stress,
   pain,
+  fever,
+  cough,
+  coldFlu,
+  muscleSoreness,
+  chestDiscomfort,
+  shortnessOfBreath,
+  allergySymptoms,
+  eyeStrain,
+  backPain,
+  sleepiness,
+  lowEnergy,
+  happy,
+  calm,
+  motivated,
+  focused,
+  relaxed,
+  anxious,
+  irritated,
+  overwhelmed,
+  sad,
+  burnout,
+  confident,
+  grateful,
   other,
 }
 
@@ -137,40 +160,46 @@ extension SymptomTypeDisplay on SymptomType {
   /// Returns a display-friendly label like "Stomach Pain" for stomachPain.
   String get displayName {
     switch (this) {
-      case SymptomType.headache:
-        return 'Headache';
-      case SymptomType.migraine:
-        return 'Migraine';
-      case SymptomType.fatigue:
-        return 'Fatigue';
-      case SymptomType.nausea:
-        return 'Nausea';
-      case SymptomType.bloating:
-        return 'Bloating';
-      case SymptomType.stomachPain:
-        return 'Stomach Pain';
-      case SymptomType.jointPain:
-        return 'Joint Pain';
-      case SymptomType.musclePain:
-        return 'Muscle Pain';
-      case SymptomType.dizziness:
-        return 'Dizziness';
-      case SymptomType.brainFog:
-        return 'Brain Fog';
-      case SymptomType.anxiety:
-        return 'Anxiety';
-      case SymptomType.moodSwing:
-        return 'Mood Swing';
-      case SymptomType.insomnia:
-        return 'Insomnia';
-      case SymptomType.skinIrritation:
-        return 'Skin Irritation';
-      case SymptomType.stress:
-        return 'Stress';
-      case SymptomType.pain:
-        return 'Pain';
-      case SymptomType.other:
-        return 'Other';
+      case SymptomType.headache: return 'Headache';
+      case SymptomType.migraine: return 'Migraine';
+      case SymptomType.fatigue: return 'Fatigue';
+      case SymptomType.nausea: return 'Nausea';
+      case SymptomType.bloating: return 'Bloating';
+      case SymptomType.stomachPain: return 'Stomach Pain';
+      case SymptomType.jointPain: return 'Joint Pain';
+      case SymptomType.musclePain: return 'Muscle Pain';
+      case SymptomType.dizziness: return 'Dizziness';
+      case SymptomType.brainFog: return 'Brain Fog';
+      case SymptomType.anxiety: return 'Anxiety';
+      case SymptomType.moodSwing: return 'Mood Swing';
+      case SymptomType.insomnia: return 'Insomnia';
+      case SymptomType.skinIrritation: return 'Skin Irritation';
+      case SymptomType.stress: return 'Stress';
+      case SymptomType.pain: return 'Pain';
+      case SymptomType.fever: return 'Fever';
+      case SymptomType.cough: return 'Cough';
+      case SymptomType.coldFlu: return 'Cold / Flu symptoms';
+      case SymptomType.muscleSoreness: return 'Muscle soreness';
+      case SymptomType.chestDiscomfort: return 'Chest discomfort';
+      case SymptomType.shortnessOfBreath: return 'Shortness of breath';
+      case SymptomType.allergySymptoms: return 'Allergy symptoms';
+      case SymptomType.eyeStrain: return 'Eye strain';
+      case SymptomType.backPain: return 'Back pain';
+      case SymptomType.sleepiness: return 'Sleepiness';
+      case SymptomType.lowEnergy: return 'Low energy';
+      case SymptomType.happy: return 'Happy';
+      case SymptomType.calm: return 'Calm';
+      case SymptomType.motivated: return 'Motivated';
+      case SymptomType.focused: return 'Focused';
+      case SymptomType.relaxed: return 'Relaxed';
+      case SymptomType.anxious: return 'Anxious';
+      case SymptomType.irritated: return 'Irritated';
+      case SymptomType.overwhelmed: return 'Overwhelmed';
+      case SymptomType.sad: return 'Sad';
+      case SymptomType.burnout: return 'Burnout feeling';
+      case SymptomType.confident: return 'Confident';
+      case SymptomType.grateful: return 'Grateful';
+      case SymptomType.other: return 'Other';
     }
   }
 }

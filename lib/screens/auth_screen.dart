@@ -73,7 +73,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                padding: EdgeInsets.symmetric(
+                  horizontal: MediaQuery.of(context).size.width > 500 
+                    ? (MediaQuery.of(context).size.width - 500) / 2 
+                    : 32.0,
+                ),
                 child: SingleChildScrollView(
                   physics: const ClampingScrollPhysics(),
                   child: Column(
