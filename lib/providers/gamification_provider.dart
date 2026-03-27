@@ -12,30 +12,34 @@ final gamificationServiceProvider = Provider<GamificationService>((ref) {
 });
 
 /// Provides the current wellness score for a user.
-final wellnessScoreProvider = FutureProvider.family<int, String>((ref, userId) async {
+/// Reactive to changes in health logs.
+final wellnessScoreProvider = Provider.family<AsyncValue<int>, String>((ref, userId) {
   final service = ref.watch(gamificationServiceProvider);
-  // Watch the real-time stream to auto-refresh when any log is added
-  ref.watch(healthLogsProvider(userId));
-  return service.calculateWellnessScore(userId);
+  final logsAsync = ref.watch(healthLogsProvider(userId));
+  
+  return logsAsync.whenData((logs) => service.calculateWellnessScoreFromLogs(logs));
 });
 
 /// Provides the full health trend (score + label + change).
-final healthTrendProvider = FutureProvider.family<HealthTrend, String>((ref, userId) async {
+/// Reactive to changes in health logs.
+final healthTrendProvider = Provider.family<AsyncValue<HealthTrend>, String>((ref, userId) {
   final service = ref.watch(gamificationServiceProvider);
-  // Watch the real-time stream to auto-refresh when any log is added
-  ref.watch(healthLogsProvider(userId));
-  return service.calculateHealthTrend(userId);
+  final logsAsync = ref.watch(healthLogsProvider(userId));
+  
+  return logsAsync.whenData((logs) => service.calculateHealthTrendFromLogs(logs));
 });
 
 /// Provides the current logging streak for a user.
-final streakProvider = FutureProvider.family<int, String>((ref, userId) async {
+/// Reactive to changes in health logs.
+final streakProvider = Provider.family<AsyncValue<int>, String>((ref, userId) {
   final service = ref.watch(gamificationServiceProvider);
-  // Watch the real-time stream to auto-refresh streak
-  ref.watch(healthLogsProvider(userId));
-  return service.calculateCurrentStreak(userId);
+  final logsAsync = ref.watch(healthLogsProvider(userId));
+  
+  return logsAsync.whenData((logs) => service.calculateCurrentStreak(logs));
 });
 
 /// Provides today's health metrics summary.
+/// Reactive to changes in health logs.
 final todaySummaryProvider = Provider.family<AsyncValue<Map<String, dynamic>>, String>((ref, userId) {
   final service = ref.watch(gamificationServiceProvider);
   final logsAsync = ref.watch(healthLogsProvider(userId));

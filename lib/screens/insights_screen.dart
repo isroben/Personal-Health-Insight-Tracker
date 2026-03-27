@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../providers/insight_provider.dart';
 import '../providers/subscription_provider.dart';
@@ -18,18 +19,13 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   @override
   void initState() {
     super.initState();
-    // Initial fetch on screen entry
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(insightProvider.notifier).refreshInsights();
-      ref.read(weeklyReportProvider.notifier).fetchReport();
-    });
+    // No explicit initialization needed as FutureProviders are reactive
   }
 
   Future<void> _onRefresh() async {
-    await Future.wait([
-      ref.read(insightProvider.notifier).refreshInsights(),
-      ref.read(weeklyReportProvider.notifier).fetchReport(),
-    ]);
+    ref.invalidate(insightProvider);
+    ref.invalidate(weeklyReportProvider);
+    // FutureProviders will re-run automatically on invalidation
   }
 
   @override
@@ -67,7 +63,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                   subtitle: 'Your wellness score over the past week',
                   currentValue:
                       report?.wellnessScore.round().toString() ?? '--',
-                  chart: _buildLineChart(theme, report?.dailyScores ?? []),
+                  chart: _buildLineChart(theme, report?.dailyScores ?? [], report?.dailyDates ?? []),
                 ),
                 loading: () => _buildLoadingCard(theme, 'Weekly Health Trend'),
                 error: (err, _) =>
@@ -300,7 +296,7 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     );
   }
 
-  Widget _buildLineChart(ThemeData theme, List<double> scores) {
+  Widget _buildLineChart(ThemeData theme, List<double> scores, List<DateTime> dates) {
     final spots = scores.asMap().entries.map((e) {
       return FlSpot(e.key.toDouble(), e.value);
     }).toList();
@@ -309,13 +305,13 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     final displaySpots = spots.isNotEmpty
         ? spots
         : [
-            const FlSpot(0, 70),
-            const FlSpot(1, 72),
-            const FlSpot(2, 70),
-            const FlSpot(3, 75),
-            const FlSpot(4, 78),
-            const FlSpot(5, 75),
-            const FlSpot(6, 80)
+            const FlSpot(0, 0),
+            const FlSpot(1, 0),
+            const FlSpot(2, 0),
+            const FlSpot(3, 0),
+            const FlSpot(4, 0),
+            const FlSpot(5, 0),
+            const FlSpot(6, 0)
           ];
 
     return LineChart(
@@ -340,11 +336,21 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               reservedSize: 30,
               interval: 1,
               getTitlesWidget: (value, meta) {
-                const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                if (value.toInt() >= 0 && value.toInt() < days.length) {
+                if (value.toInt() >= 0 && value.toInt() < dates.length) {
+                  final date = dates[value.toInt()];
+                  final label = DateFormat('E').format(date); // Mon, Tue, etc.
                   return SideTitleWidget(
                     meta: meta,
-                    child: Text(days[value.toInt()],
+                    child: Text(label,
+                        style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  );
+                }
+                // Fallback for mock data
+                const mockDays = ['T-6', 'T-5', 'T-4', 'T-3', 'T-2', 'T-1', 'Now'];
+                if (value.toInt() >= 0 && value.toInt() < mockDays.length) {
+                   return SideTitleWidget(
+                    meta: meta,
+                    child: Text(mockDays[value.toInt()],
                         style: const TextStyle(color: Colors.grey, fontSize: 10)),
                   );
                 }
@@ -376,11 +382,15 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           LineChartBarData(
             spots: displaySpots,
             isCurved: true,
+            preventCurveOverShooting: true, // Fixes the "bend" issue
             color: Colors.blue,
             barWidth: 3,
             isStrokeCapRound: true,
             dotData: const FlDotData(show: true),
-            belowBarData: BarAreaData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: Colors.blue.withOpacity(0.1),
+            ),
           ),
         ],
       ),

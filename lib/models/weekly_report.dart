@@ -24,6 +24,7 @@ class WeeklyReport {
   final int totalExerciseMinutes;    // Total exercise minutes this week
   final double wellnessScore;        // 0–100 composite score
   final List<double> dailyScores;    // Last 7 days of scores for trend charts
+  final List<DateTime> dailyDates; // Added for accurate labeling
   final List<Insight> insights;      // Key insights for the week
 
   const WeeklyReport({
@@ -38,6 +39,7 @@ class WeeklyReport {
     required this.totalExerciseMinutes,
     required this.wellnessScore,
     required this.dailyScores,
+    required this.dailyDates,
     required this.insights,
   });
 
@@ -54,6 +56,10 @@ class WeeklyReport {
     
     final freqMap = (json['symptom_frequencies'] as Map<String, dynamic>? ?? {})
         .map((key, value) => MapEntry(key, (value as num).toInt()));
+
+    final datesList = (json['daily_dates'] as List<dynamic>? ?? [])
+        .map((d) => DateTime.parse(d as String))
+        .toList();
 
     return WeeklyReport(
       weekStart: json['week_start'] != null
@@ -75,6 +81,7 @@ class WeeklyReport {
           (json['total_exercise_minutes'] as num?)?.toInt() ?? 0,
       wellnessScore: (json['wellness_score'] as num?)?.toDouble() ?? 0.0,
       dailyScores: scoresList,
+      dailyDates: datesList,
       insights: insightsList,
     );
   }
@@ -92,6 +99,7 @@ class WeeklyReport {
       'total_exercise_minutes': totalExerciseMinutes,
       'wellness_score': wellnessScore,
       'daily_scores': dailyScores,
+      'daily_dates': dailyDates.map((d) => d.toIso8601String()).toList(),
       'insights': insights.map((i) => i.toJson()).toList(),
     };
   }

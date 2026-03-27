@@ -39,7 +39,7 @@ class HealthLogRepository {
         .collection('users')
         .doc(userId)
         .collection('logs')
-        .orderBy('createdAt', descending: true)
+        .orderBy('created_at', descending: true)
         .limit(limit);
 
     final snapshot = await query.get();
@@ -57,7 +57,7 @@ class HealthLogRepository {
         .collection('users')
         .doc(userId)
         .collection('logs')
-        .orderBy('createdAt', descending: true)
+        .orderBy('created_at', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) => snapshot.docs

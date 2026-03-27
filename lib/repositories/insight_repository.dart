@@ -31,7 +31,7 @@ class InsightRepository {
         .collection('users')
         .doc(userId)
         .collection('logs')
-        .orderBy('createdAt', descending: true)
+        .orderBy('created_at', descending: true)
         .limit(30)
         .get();
 
@@ -39,31 +39,38 @@ class InsightRepository {
     if (logs.isEmpty) return [];
 
     final insights = <Insight>[];
+    
+    // Summary aggregation for better insights
+    final symptomLogs = logs.where((l) => l.symptom != 'lifestyle_check_in').toList();
 
     // 1. Stress Correlation
-    final avgStress = logs.map((l) => l.stressLevel).reduce((a, b) => a + b) / logs.length;
-    if (avgStress > 7) {
-      insights.add(Insight(
-        id: 'stress_alert',
-        title: 'High Stress Levels Detected',
-        description: 'Your average stress level is elevated. Consider relaxation techniques.',
-        type: InsightType.trend,
-        confidence: 0.85,
-        generatedAt: DateTime.now(),
-      ));
+    if (logs.isNotEmpty) {
+      final avgStress = logs.map((l) => l.stressLevel).reduce((a, b) => a + b) / logs.length;
+      if (avgStress > 7) {
+        insights.add(Insight(
+          id: 'stress_alert',
+          title: 'High Stress Levels Detected',
+          description: 'Your average stress level is elevated. Consider relaxation techniques.',
+          type: InsightType.trend,
+          confidence: 0.85,
+          generatedAt: DateTime.now(),
+        ));
+      }
     }
 
     // 2. Hydration Insight
-    final avgWater = logs.map((l) => l.waterIntake).reduce((a, b) => a + b) / logs.length;
-    if (avgWater < 1.5) {
-      insights.add(Insight(
-        id: 'hydration_tip',
-        title: 'Increase Water Intake',
-        description: 'You\'re averaging ${avgWater.toStringAsFixed(1)}L per day. Target 2.0L for better recovery.',
-        type: InsightType.recommendation,
-        confidence: 0.9,
-        generatedAt: DateTime.now(),
-      ));
+    if (logs.isNotEmpty) {
+      final avgWater = logs.map((l) => l.waterIntake).reduce((a, b) => a + b) / logs.length;
+      if (avgWater < 1.5) {
+        insights.add(Insight(
+          id: 'hydration_tip',
+          title: 'Increase Water Intake',
+          description: 'You\'re averaging ${avgWater.toStringAsFixed(1)}L per day. Target 2.0L for better recovery.',
+          type: InsightType.recommendation,
+          confidence: 0.9,
+          generatedAt: DateTime.now(),
+        ));
+      }
     }
 
     return insights;
@@ -80,14 +87,20 @@ class InsightRepository {
   }) async {
     final start = weekStart ?? DateTime.now().subtract(const Duration(days: 7));
     
+    // Fetch last 100 logs to ensure we capture records during schema transition.
+    // Memory filtering is safer than field-specific Firestore 'where' during migration.
     final snapshot = await _db
         .collection('users')
         .doc(userId)
         .collection('logs')
-        .where('createdAt', isGreaterThanOrEqualTo: start.toIso8601String())
+        .orderBy('created_at', descending: true)
+        .limit(100)
         .get();
 
-    final logs = snapshot.docs.map((doc) => HealthLog.fromJson(doc.data())).toList();
+    final allLogs = snapshot.docs.map((doc) => HealthLog.fromJson(doc.data())).toList();
+    
+    // Filter for the specific week in memory
+    final logs = allLogs.where((l) => l.createdAt.isAfter(start)).toList();
     
     if (logs.isEmpty) {
       return WeeklyReport(
@@ -102,6 +115,7 @@ class InsightRepository {
         totalExerciseMinutes: 0,
         wellnessScore: 0.0,
         dailyScores: [],
+        dailyDates: [],
         insights: [],
       );
     }
@@ -119,6 +133,7 @@ class InsightRepository {
 
     // Compute Daily Scores for the chart (past 7 days)
     final dailyScores = <double>[];
+    final dailyDates = <DateTime>[];
     for (int i = 6; i >= 0; i--) {
       final day = DateTime.now().subtract(Duration(days: i));
       final dayLogs = logs.where((l) => 
@@ -128,6 +143,7 @@ class InsightRepository {
       ).toList();
       
       dailyScores.add(_calculateScoreFromLogs(dayLogs, 1).toDouble());
+      dailyDates.add(day);
     }
 
     // Overall Weekly Wellness Score
@@ -145,6 +161,7 @@ class InsightRepository {
       totalExerciseMinutes: logs.map((l) => l.exerciseMinutes).reduce((a, b) => a + b),
       wellnessScore: weeklyScore,
       dailyScores: dailyScores,
+      dailyDates: dailyDates,
       insights: [],
     );
   }

@@ -4,14 +4,9 @@ import '../repositories/health_log_repository.dart';
 /// ==========================================================================
 /// gamification_service.dart — Engagement & Health Scoring
 /// ==========================================================================
-/// Handles the "Gamification" layer of the app, including:
-/// 1. Logging Streaks: Consecutive days of logging.
-/// 2. Wellness Score: A 0-100 composite index based on data density/stability.
-/// 3. Health Trends: Comparing current performance to previous periods.
-///
-/// ARCHITECTURE NOTE:
-///   Now uses [HealthLogRepository] to fetch data from the API/cache.
-///   No longer depends on [DatabaseService] directly.
+/// Handles the "Gamification" layer of the app.
+/// Calculations are now "pure" functions taking List<HealthLog> as input
+/// to ensure instant reactive updates without redundant I/O.
 /// ==========================================================================
 
 class HealthTrend {
@@ -39,14 +34,11 @@ class GamificationService {
   // ── 1. Streak Calculation ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Calculates the current logging streak for a user.
-  /// Fetches the last 50 logs from the repository.
-  Future<int> calculateCurrentStreak(String userId) async {
-    final now = DateTime.now();
-    final logs = await _repo.getHealthHistory(userId: userId, limit: 50);
-
+  /// Calculates the current logging streak from a list of logs.
+  int calculateCurrentStreak(List<HealthLog> logs) {
     if (logs.isEmpty) return 0;
 
+    final now = DateTime.now();
     final activityDates = logs.map((l) => _normalizeDate(l.createdAt)).toSet();
     
     int streak = 0;
@@ -79,12 +71,11 @@ class GamificationService {
   // ── 2. Wellness Score ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Calculates a "Wellness Score" (0-100) for a given date range.
-  Future<int> calculateWellnessScore(String userId, {DateTime? start, DateTime? end}) async {
+  /// Calculates a "Wellness Score" (0-100) from a list of logs in a range.
+  int calculateWellnessScoreFromLogs(List<HealthLog> logs, {DateTime? start, DateTime? end}) {
     final now = end ?? DateTime.now();
     final startDate = start ?? now.subtract(const Duration(days: 7));
 
-    final logs = await _repo.getHealthHistory(userId: userId, limit: 100);
     final periodLogs = logs.where((l) => 
       l.createdAt.isAfter(startDate) && l.createdAt.isBefore(now.add(const Duration(seconds: 1)))
     ).toList();
@@ -96,7 +87,6 @@ class GamificationService {
     double densityScore = (uniqueDays / 7.0) * 40;
 
     // 2. Symptom Stability (max 30 pts)
-    // Filter for logs with actual symptoms (not just lifestyle check-ins)
     final symptomLogs = periodLogs.where((l) => l.symptom != 'lifestyle_check_in').toList();
     double stabilityScore = 30.0;
     if (symptomLogs.isNotEmpty) {
@@ -105,14 +95,12 @@ class GamificationService {
     }
 
     // 3. Lifestyle Balance (max 30 pts)
-    // Filter for logs with lifestyle data
     final lifestyleLogs = periodLogs.where((l) => l.sleepHours > 0 || l.waterIntake > 0).toList();
     double balanceScore = 0.0;
     if (lifestyleLogs.isNotEmpty) {
       final avgSleep = lifestyleLogs.map((l) => l.sleepHours).reduce((a, b) => a + b) / lifestyleLogs.length;
       final avgWater = lifestyleLogs.map((l) => l.waterIntake).reduce((a, b) => a + b) / lifestyleLogs.length;
       
-      // Target: 8hrs sleep (15 pts), 2L water (15 pts)
       double sleepPts = (avgSleep / 8.0) * 15;
       double waterPts = (avgWater / 2.0) * 15;
       balanceScore = (sleepPts.clamp(0, 15) + waterPts.clamp(0, 15));
@@ -125,14 +113,18 @@ class GamificationService {
   // ── 3. Health Trend ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Calculates the score trend (Current week vs Previous week).
-  Future<HealthTrend> calculateHealthTrend(String userId) async {
+  /// Calculates the score trend (Current week vs Previous week) from logs.
+  HealthTrend calculateHealthTrendFromLogs(List<HealthLog> logs) {
+    if (logs.isEmpty) {
+      return const HealthTrend(score: 0, previousScore: 0, label: 'Stable', change: 0);
+    }
+
     final now = DateTime.now();
     final thisWeekStart = now.subtract(const Duration(days: 7));
     final lastWeekStart = now.subtract(const Duration(days: 14));
 
-    final currentScore = await calculateWellnessScore(userId, start: thisWeekStart, end: now);
-    final previousScore = await calculateWellnessScore(userId, start: lastWeekStart, end: thisWeekStart);
+    final currentScore = calculateWellnessScoreFromLogs(logs, start: thisWeekStart, end: now);
+    final previousScore = calculateWellnessScoreFromLogs(logs, start: lastWeekStart, end: thisWeekStart);
 
     final change = currentScore.toDouble() - previousScore.toDouble();
     String label = 'Stable';
@@ -148,45 +140,8 @@ class GamificationService {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // ── 4. Detailed Analytics for Charts ──
+  // ── 4. Today's Summary ──
   // ══════════════════════════════════════════════════════════════════════════
-
-  /// Calculates daily wellness scores for the past 7 days.
-  Future<List<double>> calculateDailyScores(String userId) async {
-    final List<double> dailyScores = [];
-    final now = DateTime.now();
-
-    for (int i = 6; i >= 0; i--) {
-      final day = now.subtract(Duration(days: i));
-      final dayStart = DateTime(day.year, day.month, day.day);
-      final dayEnd =
-          dayStart.add(const Duration(hours: 23, minutes: 59, seconds: 59));
-
-      final score =
-          await calculateWellnessScore(userId, start: dayStart, end: dayEnd);
-      dailyScores.add(score.toDouble());
-    }
-    return dailyScores;
-  }
-
-  /// Calculates symptom frequency for the past 30 days.
-  Future<Map<String, int>> calculateMonthlySymptomFrequency(
-      String userId) async {
-    final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-    // Fetch a large enough history to cover 30 days
-    final logs = await _repo.getHealthHistory(userId: userId, limit: 500);
-
-    final periodLogs =
-        logs.where((l) => l.createdAt.isAfter(thirtyDaysAgo)).toList();
-
-    final Map<String, int> frequencies = {};
-    for (final log in periodLogs) {
-      if (log.symptom.isNotEmpty && log.symptom != 'lifestyle_check_in') {
-        frequencies[log.symptom] = (frequencies[log.symptom] ?? 0) + 1;
-      }
-    }
-    return frequencies;
-  }
 
   /// Calculates metrics specifically for today's summary.
   Map<String, dynamic> calculateTodaySummary(List<HealthLog> logs) {
@@ -206,7 +161,6 @@ class GamificationService {
       };
     }
 
-    // Aggregation logic
     double totalSleep = 0;
     double totalWater = 0;
     int totalExercise = 0;
@@ -214,12 +168,9 @@ class GamificationService {
     int stressCount = 0;
 
     for (var l in todayLogs) {
-      // For sleep, we take the latest non-zero entry from today
       if (l.sleepHours > 0) totalSleep = l.sleepHours; 
-      
       totalWater += l.waterIntake;
       totalExercise += l.exerciseMinutes;
-      
       if (l.stressLevel > 0) {
         totalStress += l.stressLevel;
         stressCount++;

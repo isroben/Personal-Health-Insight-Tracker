@@ -53,12 +53,12 @@ class HealthLog {
       mood: json['mood'] as String? ?? '',
       stressLevel: (json['stress_level'] as num?)?.toInt() ?? 0,
       notes: json['notes'] as String?,
-      createdAt: _parseDate(json['created_at'] ?? json['createdAt']),
+      createdAt: _parseDate(json['date'] ?? json['created_at'] ?? json['createdAt']),
     );
   }
 
-  /// Converts to a Map for Firestore storage.
-  Map<String, dynamic> toJson() {
+  /// Converts to a Map for Firestore storage, using Timestamps and proper snake_case keys.
+  Map<String, dynamic> toFirestoreMap() {
     return {
       'id': id,
       'user_id': userId,
@@ -70,12 +70,13 @@ class HealthLog {
       'mood': mood,
       'stress_level': stressLevel,
       if (notes != null) 'notes': notes,
-      'created_at': createdAt.toIso8601String(),
-      // Add a camelCase version for Firestore ordering compatibility if needed,
-      // but let's stick to the repo's order preference.
-      'createdAt': createdAt.toIso8601String(),
+      'date': createdAt, // This will be converted to a Timestamp by the Firestore SDK
+      'created_at': createdAt, // Using Timestamp for both for ordering flexibility
     };
   }
+
+  /// Converts to a Map for JSON storage.
+  Map<String, dynamic> toJson() => toFirestoreMap();
 
   static DateTime _parseDate(dynamic value) {
     if (value == null) return DateTime.now();
