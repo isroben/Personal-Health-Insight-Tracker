@@ -1,58 +1,89 @@
 /// ==========================================================================
-/// lifestyle_provider.dart — Lifestyle Entry State Provider (Riverpod)
+/// lifestyle_provider.dart — Lifestyle Entry State Provider (Online-Only)
 /// ==========================================================================
 /// Manages the list of lifestyle entries for the current user.
-/// Provides:
-/// - Fetching lifestyle entries from Firestore
-/// - Adding/updating a lifestyle entry (one per day)
 ///
-/// Depends on: DatabaseService
+/// Strictly Online:
+///   Data flows: UI → LifestyleEntriesNotifier → LoggingService 
+///                                             → HealthLogRepository 
+///                                             → ApiService → Backend.
 /// ==========================================================================
 
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/lifestyle_entry.dart';
-import '../services/database_service.dart';
-import 'logging_provider.dart'; // import databaseServiceProvider from here
+import '../models/health_log.dart';
+import '../services/logging_service.dart';
+import 'logging_provider.dart';
+import 'auth_provider.dart';
 
 /// Provides the list of lifestyle entries for the current user.
+/// Fetches directly from the API via [LoggingService].
 final lifestyleEntriesProvider = StateNotifierProvider<
     LifestyleEntriesNotifier, AsyncValue<List<LifestyleEntry>>>((ref) {
-  return LifestyleEntriesNotifier(ref.read(databaseServiceProvider));
+  final service = ref.watch(loggingServiceProvider);
+  final user = ref.watch(authStateProvider).valueOrNull;
+  final notifier = LifestyleEntriesNotifier(service);
+  
+  if (user != null) {
+    notifier.startWatching(user.id);
+  }
+  
+  return notifier;
 });
 
 class LifestyleEntriesNotifier
     extends StateNotifier<AsyncValue<List<LifestyleEntry>>> {
-  final DatabaseService _db;
+  final LoggingService _service;
+  StreamSubscription? _subscription;
 
-  LifestyleEntriesNotifier(this._db) : super(const AsyncLoading());
+  LifestyleEntriesNotifier(this._service) : super(const AsyncLoading());
 
-  /// Fetches all lifestyle entries for the given user.
-  Future<void> fetchEntries(String userId) async {
+  /// Starts watching the real-time stream of lifestyle entries.
+  void startWatching(String userId) {
+    _subscription?.cancel();
     state = const AsyncLoading();
-    try {
-      final entries = await _db.getLifestyleEntries(userId);
-      state = AsyncData(entries);
-    } catch (e, st) {
-      state = AsyncError(e, st);
-    }
+
+    _subscription = _service.getHealthHistoryStream(userId).listen(
+      (logs) {
+        // Filter for lifestyle entries (marked by special symptom name)
+        final entries = logs
+            .where((hl) => hl.symptom == 'lifestyle_check_in')
+            .map((hl) => _healthLogToLifestyleEntry(hl))
+            .toList()
+              ..sort((a, b) => b.date.compareTo(a.date));
+              
+        state = AsyncData(entries);
+      },
+      onError: (e, st) => state = AsyncError(e, st),
+    );
   }
 
-  /// Adds or updates a lifestyle entry and refreshes the list.
-  Future<void> addEntry(LifestyleEntry entry) async {
-    try {
-      await _db.addLifestyleEntry(entry);
-      state.whenData((entries) {
-        // Replace existing entry for the same day, or add new
-        final updated = entries
-            .where((e) =>
-                e.date.year != entry.date.year ||
-                e.date.month != entry.date.month ||
-                e.date.day != entry.date.day)
-            .toList();
-        state = AsyncData([entry, ...updated]);
-      });
-    } catch (e, st) {
-      state = AsyncError(e, st);
-    }
+  /// Refreshes entries manually (now restarts the stream).
+  Future<void> fetchEntries(String userId) async {
+    startWatching(userId);
+  }
+
+  /// Helper: Convert API [HealthLog] back to legacy [LifestyleEntry] model.
+  LifestyleEntry _healthLogToLifestyleEntry(HealthLog hl) {
+    return LifestyleEntry(
+      id: hl.id,
+      userId: hl.userId,
+      date: hl.createdAt,
+      sleepHours: hl.sleepHours,
+      diet: DietQuality.fair, // Diet quality not currently split in HealthLog
+      hydrationGlasses: (hl.waterIntake / 0.25).round(),
+      exerciseMinutes: hl.exerciseMinutes,
+      stressLevel: hl.stressLevel,
+      notes: hl.notes,
+      createdAt: hl.createdAt,
+      updatedAt: hl.createdAt,
+    );
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }

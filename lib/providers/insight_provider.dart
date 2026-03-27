@@ -1,83 +1,96 @@
-/// ==========================================================================
-/// insight_provider.dart — Insight State Management
-/// ==========================================================================
-/// Manages the state of health insights and correlation analysis.
-/// 
-/// Triggers:
-///   - [refreshInsights]: Re-runs statistical analysis locally.
-///   - [requestAiInsights]: Calls OpenAI for advanced patterns (premium).
-/// ==========================================================================
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/correlation.dart';
-import '../services/ai_insight_service.dart';
-import '../services/subscription_service.dart';
-import 'symptom_provider.dart';
-import 'lifestyle_provider.dart';
+import '../models/insight.dart';
+import '../models/weekly_report.dart';
+import '../repositories/insight_repository.dart';
 import 'auth_provider.dart';
-import 'subscription_provider.dart';
+import 'symptom_provider.dart'; // for healthLogsProvider
 
-final aiInsightServiceProvider = Provider<AIInsightService>((ref) {
-  // TODO: Fetch API key from secure storage or environment
-  return AIInsightService(apiKey: null); 
+/// Provides a singleton [InsightRepository].
+final insightRepositoryProvider = Provider<InsightRepository>((ref) {
+  return InsightRepository(db: null); // Defaults to FirebaseFirestore.instance
 });
 
-final insightProvider = StateNotifierProvider<InsightNotifier, AsyncValue<List<Correlation>>>((ref) {
-  return InsightNotifier(
-    ref.read(aiInsightServiceProvider),
-    ref,
-  );
+/// Provides the list of health insights computed client-side.
+final insightProvider =
+    StateNotifierProvider<InsightNotifier, AsyncValue<List<Insight>>>((ref) {
+  final user = ref.watch(authStateProvider).valueOrNull;
+  final notifier = InsightNotifier(ref);
+  
+  if (user != null) {
+    // Watch health logs. Any change triggers a re-fetch of insights.
+    ref.watch(healthLogsProvider(user.id));
+    notifier.refreshInsights();
+  }
+  
+  return notifier;
 });
 
-class InsightNotifier extends StateNotifier<AsyncValue<List<Correlation>>> {
-  final AIInsightService _service;
+class InsightNotifier extends StateNotifier<AsyncValue<List<Insight>>> {
   final Ref _ref;
 
-  InsightNotifier(this._service, this._ref) : super(const AsyncData([]));
+  InsightNotifier(this._ref) : super(const AsyncData([]));
 
-  /// Runs local statistical analysis based on cached logs.
+  /// Fetches logs from Firestore and computes insights client-side.
   Future<void> refreshInsights() async {
-    state = const AsyncLoading();
-    
-    final symptoms = _ref.read(symptomLogsProvider).value ?? [];
-    final lifestyle = _ref.read(lifestyleEntriesProvider).value ?? [];
-    final userId = _ref.read(authStateProvider).value?.id ?? 'anon';
+    final user = _ref.read(authStateProvider).valueOrNull;
+    if (user == null) {
+      state = const AsyncData([]);
+      return;
+    }
 
+    if (state.valueOrNull?.isEmpty ?? true) {
+      state = const AsyncLoading();
+    }
+    
     try {
-      final results = _service.detectStatisticalCorrelations(
-        userId: userId,
-        symptomLogs: symptoms,
-        lifestyleLogs: lifestyle,
-      );
+      final repo = _ref.read(insightRepositoryProvider);
+      final results = await repo.getInsights(user.id);
       state = AsyncData(results);
     } catch (e, st) {
       state = AsyncError(e, st);
     }
   }
+}
 
-  /// Calls the AI engine for premium insights.
-  Future<void> requestAiInsights() async {
-    state = const AsyncLoading();
+/// Provides the weekly health report computed client-side.
+final weeklyReportProvider =
+    StateNotifierProvider<WeeklyReportNotifier, AsyncValue<WeeklyReport?>>((ref) {
+  final user = ref.watch(authStateProvider).valueOrNull;
+  final notifier = WeeklyReportNotifier(ref);
+  
+  if (user != null) {
+    // Watch health logs. Any change triggers a re-fetch of the report.
+    ref.watch(healthLogsProvider(user.id));
+    notifier.fetchReport();
+  }
+  
+  return notifier;
+});
 
-    final user = _ref.read(authStateProvider).value;
-    final canAccessAi = _ref.read(subscriptionServiceProvider).canAccess(user!, Feature.aiInsights);
-    
-    if (!canAccessAi) {
-      state = AsyncError('Premium subscription required for AI insights.', StackTrace.current);
+class WeeklyReportNotifier extends StateNotifier<AsyncValue<WeeklyReport?>> {
+  final Ref _ref;
+
+  WeeklyReportNotifier(this._ref) : super(const AsyncData(null));
+
+  /// Fetches logs from Firestore and computes the weekly report.
+  Future<void> fetchReport({DateTime? weekStart}) async {
+    final user = _ref.read(authStateProvider).valueOrNull;
+    if (user == null) {
+      state = const AsyncData(null);
       return;
     }
 
-    final symptoms = _ref.read(symptomLogsProvider).value ?? [];
-    final lifestyle = _ref.read(lifestyleEntriesProvider).value ?? [];
-    final userId = _ref.read(authStateProvider).value?.id ?? 'anon';
+    if (state.valueOrNull == null) {
+      state = const AsyncLoading();
+    }
 
     try {
-      final results = await _service.generateAiInsights(
-        userId: userId,
-        symptomLogs: symptoms,
-        lifestyleLogs: lifestyle,
+      final repo = _ref.read(insightRepositoryProvider);
+      final report = await repo.getWeeklyReport(
+        userId: user.id,
+        weekStart: weekStart,
       );
-      state = AsyncData(results);
+      state = AsyncData(report);
     } catch (e, st) {
       state = AsyncError(e, st);
     }

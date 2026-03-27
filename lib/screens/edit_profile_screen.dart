@@ -51,7 +51,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     await ref.read(userProfileNotifierProvider.notifier).updateProfile(
       name: _nameController.text,
-      preferences: updatedPrefs,
+      preferences: updatedPrefs.toMap(),
     );
 
     if (mounted && !ref.read(userProfileNotifierProvider).hasError) {

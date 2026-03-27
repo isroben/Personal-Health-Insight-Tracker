@@ -1,18 +1,25 @@
 /// ==========================================================================
 /// app.dart — Root Application Widget
 /// ==========================================================================
+/// CONNECTIVITY GUARD:
+///   The app is API-driven and requires internet connectivity.
+///   [connectivityProvider] watches the network status; if offline,
+///   [NoInternetScreen] is shown in place of all other content.
+/// ==========================================================================
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'utils/theme.dart';
 import 'routes/app_router.dart';
 import 'widgets/bottom_nav_bar.dart';
+import 'widgets/no_internet_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/log_history_screen.dart';
 import 'screens/insights_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/settings_screen.dart';
 import 'providers/auth_provider.dart';
+import 'providers/connectivity_provider.dart';
 import 'providers/navigation_provider.dart';
 import 'providers/onboarding_provider.dart';
 import 'screens/onboarding_screen.dart';
@@ -23,6 +30,23 @@ class HealthInsightApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // ── Connectivity guard — must be online to use the app ──
+    final connectivityAsync = ref.watch(connectivityProvider);
+    final isOnline = connectivityAsync.valueOrNull ?? true;
+
+    // While connectivity status is loading (first check), proceed optimistically.
+    // Once we have a definitive offline signal, show the wall screen.
+    if (!isOnline) {
+      return MaterialApp(
+        title: 'Health Insight Tracker',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.light,
+        home: const NoInternetScreen(),
+      );
+    }
+
     final authState = ref.watch(authStateProvider);
 
     return MaterialApp(
@@ -44,6 +68,7 @@ class HealthInsightApp extends ConsumerWidget {
     );
   }
 }
+
 
 /// MainShell — Houses the bottom navigation bar and switches between
 /// the five primary screens.

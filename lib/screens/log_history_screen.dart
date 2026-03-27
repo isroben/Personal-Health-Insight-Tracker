@@ -172,7 +172,10 @@ class _LogHistoryItem extends ConsumerWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              await ref.read(symptomLogsProvider.notifier).deleteLog(log.id);
+              final user = ref.read(authStateProvider).valueOrNull;
+              if (user != null) {
+                await ref.read(symptomLogsProvider.notifier).deleteLog(user.id, log.id);
+              }
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Log deleted')),

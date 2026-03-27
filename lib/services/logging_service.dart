@@ -1,31 +1,31 @@
 /// ==========================================================================
-/// logging_service.dart — Core Logging Business Logic
+/// logging_service.dart — Core Logging Business Logic (Online-Only)
 /// ==========================================================================
 /// Orchestrates symptom and lifestyle logging operations:
 ///
 ///   1. Validates input using [AppValidators]
-///   2. Builds the model object (SymptomLog / LifestyleEntry)
-///   3. Saves to cloud (DatabaseService) with offline fallback (LocalCacheService)
+///   2. Builds the [HealthLog] model for the API
+///   3. Posts to the backend via [HealthLogRepository]
 ///   4. Triggers notifications/nudges based on log content
 ///
-/// This service is the single source of truth for all log write operations.
-/// It is consumed by the Riverpod providers in the UI layer.
+/// Strictly Online:
+///   - All operations require an active connection to the [ApiService].
+///   - No local caching or offline fallbacks.
 /// ==========================================================================
 
 import 'package:uuid/uuid.dart';
-
-import '../models/symptom_log.dart';
+import '../models/health_log.dart';
 import '../models/lifestyle_entry.dart';
+import '../models/symptom_log.dart';
+import '../repositories/health_log_repository.dart';
+import '../services/notification_service.dart';
 import '../utils/validators.dart';
-import 'database_service.dart';
-import 'local_cache_service.dart';
-import 'notification_service.dart';
 
-/// Result of a logging operation — carries success flag and error messages.
+/// Result of a logging operation.
 class LogResult {
   final bool success;
-  final String? message; // Success message or error summary
-  final Map<String, String>? fieldErrors; // Form field → error message
+  final String? message;
+  final Map<String, String>? fieldErrors;
 
   const LogResult.success([this.message = 'Entry saved successfully!'])
       : success = true,
@@ -41,17 +41,14 @@ class LogResult {
 }
 
 class LoggingService {
-  final DatabaseService _db;
-  final LocalCacheService _cache;
+  final HealthLogRepository _healthLogRepo;
   final NotificationService _notifications;
   final Uuid _uuid;
 
   LoggingService({
-    DatabaseService? db,
-    LocalCacheService? cache,
+    required HealthLogRepository healthLogRepo,
     NotificationService? notifications,
-  })  : _db = db ?? DatabaseService(),
-        _cache = cache ?? LocalCacheService(),
+  })  : _healthLogRepo = healthLogRepo,
         _notifications = notifications ?? NotificationService(),
         _uuid = const Uuid();
 
@@ -59,19 +56,16 @@ class LoggingService {
   // ── Symptom Logging ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Logs a new symptom entry for the given user.
-  ///
-  /// Steps:
-  ///   1. Validate inputs (severity 1–10, symptom type required)
-  ///   2. Build a [SymptomLog] with a new UUID and current timestamp
-  ///   3. Write to LocalCacheService immediately (offline-first)
-  ///   4. Attempt Firestore write; on failure, add to sync queue
-  ///   5. Trigger high-severity nudge notification if severity >= 7
-  ///   6. Return [LogResult] with success/failure state
+  /// Logs a new symptom entry.
   Future<LogResult> logSymptom({
     required String userId,
     required String symptomTypeName,
     required double severity,
+    required double sleepHours,
+    required double waterIntakeLitres,
+    required int exerciseMinutes,
+    required String mood,
+    required double stressLevel,
     String? notes,
   }) async {
     // ── Step 1: Validate inputs ──
@@ -85,109 +79,96 @@ class LoggingService {
       return LogResult.failure(errors, 'Please fix the highlighted fields.');
     }
 
-    // ── Step 2: Build the model ──
+    // ── Step 2: Build the HealthLog model ──
     final now = DateTime.now();
-    final log = SymptomLog(
-      id: _uuid.v4(), // Generate a collision-resistant UUID
+    final log = HealthLog(
+      id: _uuid.v4(), 
       userId: userId,
-      date: now,
-      symptomType: SymptomType.values.firstWhere(
-        (e) => e.name == symptomTypeName,
-        orElse: () => SymptomType.other,
-      ),
-      severity: severity.round(), // Normalize slider double to int
+      symptom: symptomTypeName,
+      severity: severity.round(),
+      sleepHours: sleepHours,
+      waterIntake: waterIntakeLitres,
+      exerciseMinutes: exerciseMinutes,
+      mood: mood,
+      stressLevel: stressLevel.round(),
       notes: notes?.trim().isEmpty == true ? null : notes?.trim(),
       createdAt: now,
-      updatedAt: now,
     );
 
-    // ── Step 3: Write to local cache immediately ──
-    // The user sees instant feedback regardless of connectivity.
-    await _cache.cacheSymptomLog(log);
-
-    // ── Step 4: Attempt Firestore write ──
+    // ── Step 3: POST to backend via repository ──
     try {
-      await _db.addSymptomLog(log);
-    } catch (e) {
-      // If Firestore fails (e.g. offline), queue for later sync.
-      await _cache.addToSyncQueue(
-        type: 'symptom_log',
-        action: 'add',
-        data: log.toMap(),
+      final persisted = await _healthLogRepo.logSymptom(log);
+      
+      // ── Step 4: Notification triggers (using the persisted or local data) ──
+      final symptomLog = SymptomLog(
+        id: persisted.id,
+        userId: userId,
+        date: now,
+        symptomType: SymptomType.values.firstWhere(
+          (e) => e.name == symptomTypeName,
+          orElse: () => SymptomType.other,
+        ),
+        severity: severity.round(),
+        notes: log.notes,
+        createdAt: now,
+        updatedAt: now,
       );
-      // Not a failure from the user's POV — data is safe in local cache.
+      await _checkSymptomNotifications(symptomLog);
+
+      return const LogResult.success('Symptom logged successfully!');
+    } catch (e) {
+      return LogResult.error('Failed to save log: ${e.toString()}');
     }
-
-    // ── Step 5: Check notification triggers ──
-    await _checkSymptomNotifications(log);
-
-    return const LogResult.success('Symptom logged successfully!');
   }
 
-  /// Updates an existing symptom log (e.g., user corrects severity).
+  /// Updates an existing symptom log (edit flow).
   Future<LogResult> updateSymptomLog({
     required SymptomLog existingLog,
     required double newSeverity,
     String? newNotes,
   }) async {
-    // Validate the updated severity
     final severityError = AppValidators.validateSeverity(newSeverity);
     if (severityError != null) {
       return LogResult.failure({'severity': severityError});
     }
 
-    final updated = existingLog.copyWith(
+    final updatedHealthLog = HealthLog(
+      id: existingLog.id,
+      userId: existingLog.userId,
+      symptom: existingLog.symptomType.name,
       severity: newSeverity.round(),
+      sleepHours: 0,
+      waterIntake: 0,
+      exerciseMinutes: 0,
+      mood: '',
+      stressLevel: 5,
       notes: newNotes?.trim(),
-      updatedAt: DateTime.now(),
+      createdAt: existingLog.createdAt,
     );
 
-    // Update local cache first
-    await _cache.cacheSymptomLog(updated);
-
     try {
-      await _db.updateSymptomLog(updated);
+      await _healthLogRepo.logSymptom(updatedHealthLog);
+      return const LogResult.success('Symptom updated successfully.');
     } catch (e) {
-      await _cache.addToSyncQueue(
-        type: 'symptom_log',
-        action: 'update',
-        data: updated.toMap(),
-      );
+      return LogResult.error('Update failed: ${e.toString()}');
     }
-
-    return const LogResult.success('Symptom updated.');
   }
 
-  /// Deletes a symptom log by its ID.
-  Future<LogResult> deleteSymptomLog(String logId) async {
-    await _cache.removeSymptomLog(logId);
-
+  /// Deletes a symptom log via Firestore.
+  Future<LogResult> deleteSymptomLog(String userId, String logId) async {
     try {
-      await _db.deleteSymptomLog(logId);
+      await _healthLogRepo.deleteLog(userId, logId);
+      return const LogResult.success('Entry deleted successfully.');
     } catch (e) {
-      await _cache.addToSyncQueue(
-        type: 'symptom_log',
-        action: 'delete',
-        data: {'id': logId},
-      );
+      return LogResult.error('Deletion failed: ${e.toString()}');
     }
-
-    return const LogResult.success('Entry deleted.');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // ── Lifestyle Logging ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Logs or updates today's lifestyle entry for the given user.
-  ///
-  /// Steps:
-  ///   1. Validate all lifestyle fields
-  ///   2. Build [LifestyleEntry] with today's date and composite doc ID
-  ///   3. Write to local cache immediately (offline-first)
-  ///   4. Attempt Firestore upsert; queue offline if it fails
-  ///   5. Trigger nudge notifications based on concerning patterns
-  ///   6. Return [LogResult]
+  /// Logs today's lifestyle entry via the API.
   Future<LogResult> logLifestyle({
     required String userId,
     required double sleepHours,
@@ -197,7 +178,6 @@ class LoggingService {
     required double stressLevel,
     String? notes,
   }) async {
-    // ── Step 1: Validate inputs ──
     final errors = AppValidators.validateLifestyleForm(
       sleepHours: sleepHours,
       hydration: hydrationGlasses,
@@ -209,232 +189,160 @@ class LoggingService {
       return LogResult.failure(errors, 'Please fix the highlighted fields.');
     }
 
-    // ── Step 2: Build the model ──
+    // Build a combined HealthLog for the API
     final now = DateTime.now();
-    final entry = LifestyleEntry(
+    final mood = _moodFromStress(stressLevel);
+    final healthLog = HealthLog(
       id: _uuid.v4(),
       userId: userId,
-      date: now,
+      symptom: 'lifestyle_check_in',
+      severity: 0,
       sleepHours: sleepHours,
-      diet: DietQuality.values.firstWhere(
-        (e) => e.name == dietQualityName,
-        orElse: () => DietQuality.fair,
-      ),
-      hydrationGlasses: hydrationGlasses,
+      waterIntake: hydrationGlasses * 0.25, // approx 250ml per glass
       exerciseMinutes: exerciseMinutes,
+      mood: mood,
       stressLevel: stressLevel.round(),
-      notes: notes?.trim().isEmpty == true ? null : notes?.trim(),
+      notes: notes?.trim(),
       createdAt: now,
-      updatedAt: now,
     );
 
-    // ── Step 3: Write to local cache ──
-    await _cache.cacheLifestyleEntry(entry);
-
-    // ── Step 4: Attempt Firestore upsert ──
     try {
-      await _db.addLifestyleEntry(entry); // Uses upsert internally
-    } catch (e) {
-      await _cache.addToSyncQueue(
-        type: 'lifestyle_entry',
-        action: 'add',
-        data: entry.toMap(),
+      await _healthLogRepo.logSymptom(healthLog);
+      
+      // Track for notifications
+      final entry = LifestyleEntry(
+        id: healthLog.id,
+        userId: userId,
+        date: now,
+        sleepHours: sleepHours,
+        diet: DietQuality.values.firstWhere(
+          (e) => e.name == dietQualityName,
+          orElse: () => DietQuality.fair,
+        ),
+        hydrationGlasses: hydrationGlasses,
+        exerciseMinutes: exerciseMinutes,
+        stressLevel: stressLevel.round(),
+        notes: notes?.trim().isEmpty == true ? null : notes?.trim(),
+        createdAt: now,
+        updatedAt: now,
       );
+      await _checkLifestyleNotifications(entry);
+      
+      return const LogResult.success('Lifestyle logged successfully!');
+    } catch (e) {
+      return LogResult.error('Failed to log lifestyle: ${e.toString()}');
     }
-
-    // ── Step 5: Check lifestyle-based notification triggers ──
-    await _checkLifestyleNotifications(entry);
-
-    return const LogResult.success('Lifestyle logged successfully!');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // ── Cache-first Data Retrieval ──
+  // ── Data Retrieval (Direct Firestore) ──
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Returns a merged list of symptom logs: fetches from Firestore and
-  /// updates the local cache, but returns the cache immediately for speed.
-  ///
-  /// Pattern: Cache-then-Network (optimistic UI)
+  /// Returns health history from Firestore as a real-time stream.
+  Stream<List<HealthLog>> getHealthHistoryStream(String userId) {
+    return _healthLogRepo.getHealthHistoryStream(userId: userId, limit: 100);
+  }
+
+  /// Returns symptom logs from Firestore as a real-time stream.
+  Stream<List<SymptomLog>> getSymptomLogsStream(String userId) {
+    return _healthLogRepo.getHealthHistoryStream(userId: userId, limit: 100).map((healthLogs) {
+      return healthLogs.map((hl) {
+        final symptomType = SymptomType.values.firstWhere(
+          (e) => e.name == hl.symptom || 
+                 e.displayName.toLowerCase() == hl.symptom.toLowerCase(),
+          orElse: () => SymptomType.other,
+        );
+        return SymptomLog(
+          id: hl.id,
+          userId: hl.userId,
+          date: hl.createdAt,
+          symptomType: symptomType,
+          severity: hl.severity,
+          notes: hl.notes,
+          createdAt: hl.createdAt,
+          updatedAt: hl.createdAt,
+        );
+      }).toList();
+    });
+  }
+
+  /// Returns health history from Firestore.
+  Future<List<HealthLog>> getHealthHistory(String userId) async {
+    return await _healthLogRepo.getHealthHistory(userId: userId, limit: 100);
+  }
+
+  /// Returns health history converted back to SymptomLog for UI compatibility.
   Future<List<SymptomLog>> getSymptomLogs(String userId) async {
-    // Return cache immediately for instant UI
-    final cached = _cache.getCachedSymptomLogs();
-
-    // Fetch from Firestore in background and update cache
-    try {
-      final remote = await _db.getSymptomLogs(userId, limit: 100);
-      await _cache.cacheSymptomLogsBatch(remote);
-      return remote;
-    } catch (_) {
-      // Offline — return whatever is in the cache
-      return cached;
-    }
+    final healthLogs = await _healthLogRepo.getHealthHistory(userId: userId, limit: 100);
+    return healthLogs.map((hl) {
+      final symptomType = SymptomType.values.firstWhere(
+        (e) => e.name == hl.symptom || 
+               e.displayName.toLowerCase() == hl.symptom.toLowerCase(),
+        orElse: () => SymptomType.other,
+      );
+      return SymptomLog(
+        id: hl.id,
+        userId: hl.userId,
+        date: hl.createdAt,
+        symptomType: symptomType,
+        severity: hl.severity,
+        notes: hl.notes,
+        createdAt: hl.createdAt,
+        updatedAt: hl.createdAt,
+      );
+    }).toList();
   }
 
-  /// Returns today's lifestyle entry, checking local cache first.
-  Future<LifestyleEntry?> getTodayLifestyleEntry(String userId) async {
-    // Try Firestore first
-    try {
-      final remote = await _db.getTodayLifestyleEntry(userId);
-      if (remote != null) {
-        await _cache.cacheLifestyleEntry(remote);
-        return remote;
-      }
-    } catch (_) {
-      // Offline — try local cache
-    }
+  // ── Private Helpers ──
 
-    // Search cache for today's entry
-    final cached = _cache.getCachedLifestyleEntries();
-    final today = DateTime.now();
-    return cached.where((e) =>
-        e.date.year == today.year &&
-        e.date.month == today.month &&
-        e.date.day == today.day).firstOrNull;
+  String _moodFromStress(double stressLevel) {
+    if (stressLevel <= 3) return 'calm';
+    if (stressLevel <= 5) return 'neutral';
+    if (stressLevel <= 7) return 'stressed';
+    return 'overwhelmed';
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ── Offline Sync ──
-  // ══════════════════════════════════════════════════════════════════════════
-
-  /// Processes all pending sync queue items after connectivity is restored.
-  ///
-  /// Iterates through the sync queue and replays each pending operation
-  /// against Firestore. Successfully synced items are removed from the queue.
-  Future<void> syncPendingOperations() async {
-    final pending = _cache.getPendingSyncOps();
-
-    if (pending.isEmpty) return;
-
-    for (final op in pending) {
-      try {
-        final type = op['type'] as String?;
-        final action = op['action'] as String?;
-        final data = op['data'] as Map<String, dynamic>?;
-
-        if (type == null || action == null || data == null) continue;
-
-        if (type == 'symptom_log') {
-          final log = SymptomLog.fromMap(data);
-          if (action == 'add' || action == 'update') {
-            await _db.addSymptomLog(log);
-          } else if (action == 'delete') {
-            await _db.deleteSymptomLog(data['id'] as String);
-          }
-        } else if (type == 'lifestyle_entry') {
-          final entry = LifestyleEntry.fromMap(data);
-          if (action == 'add') {
-            await _db.addLifestyleEntry(entry);
-          }
-        }
-
-        // Remove successfully synced item from the queue
-        final key = op['timestamp'] as String? ?? '';
-        await _cache.removeSyncOp(key);
-      } catch (e) {
-        // Skip failed items — they'll be retried on next sync
-        continue;
-      }
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // ── Private: Notification Triggers ──
-  // ══════════════════════════════════════════════════════════════════════════
-
-  /// Checks a newly logged symptom and triggers notifications when needed.
-  ///
-  /// Triggers:
-  ///   - High severity (>= 7): "You logged a severe episode — stay hydrated
-  ///     and rest." nudge notification
-  ///   - Migraine: Specific migraine care tip notification
   Future<void> _checkSymptomNotifications(SymptomLog log) async {
     try {
       if (log.severity >= 8) {
-        // Critical severity nudge — encourage immediate self-care action
         await _notifications.sendImmediateNudge(
           title: 'Severe ${log.symptomType.displayName} logged',
-          body:
-              'Severity ${log.severity}/10 detected. Remember to rest, '
-              'stay hydrated, and avoid bright screens.',
+          body: 'Severity ${log.severity}/10. Remember to rest and stay hydrated.',
           payload: 'symptom_log:${log.id}',
         );
       } else if (log.severity >= 6) {
-        // Moderate severity — gentle tip
         await _notifications.sendImmediateNudge(
           title: 'Feeling rough?',
-          body:
-              'Your ${log.symptomType.displayName} is at ${log.severity}/10. '
-              'Take a break and drink some water.',
+          body: 'Your ${log.symptomType.displayName} is at ${log.severity}/10. Take a break.',
           payload: 'symptom_log:${log.id}',
         );
       }
-
-      // Migraine-specific advice
-      if (log.symptomType == SymptomType.migraine && log.severity >= 5) {
-        await _notifications.sendImmediateNudge(
-          title: 'Migraine detected',
-          body:
-              'Find a quiet, dark space. Avoid screens. '
-              'Track any triggers you notice today.',
-          payload: 'symptom_log:${log.id}',
-        );
-      }
-    } catch (_) {
-      // Notification failures are non-critical — don't block the log save
-    }
+    } catch (_) {}
   }
 
-  /// Checks a lifestyle entry and triggers nudges for concerning patterns.
-  ///
-  /// Triggers:
-  ///   - Low sleep (< 5 hrs): sleep hygiene nudge
-  ///   - High stress (>= 8): stress relief nudge
-  ///   - Very low hydration (< 3 glasses): hydration nudge
-  ///   - No exercise: gentle activity reminder
   Future<void> _checkLifestyleNotifications(LifestyleEntry entry) async {
     try {
       if (entry.sleepHours < 5) {
         await _notifications.sendImmediateNudge(
           title: 'Sleep alert',
-          body:
-              'Only ${entry.sleepHours.toStringAsFixed(1)} hrs of sleep logged. '
-              'Poor sleep is a top trigger for headaches and fatigue.',
+          body: 'Only ${entry.sleepHours.toStringAsFixed(1)} hrs logged. Poor sleep worsens symptoms.',
           payload: 'lifestyle:sleep',
         );
       }
-
       if (entry.stressLevel >= 8) {
         await _notifications.sendImmediateNudge(
           title: 'High stress detected',
-          body:
-              'Stress level ${entry.stressLevel}/10. '
-              'Try 5 minutes of deep breathing or a short walk.',
+          body: 'Stress ${entry.stressLevel}/10. Try 5 minutes of deep breathing.',
           payload: 'lifestyle:stress',
         );
       }
-
       if (entry.hydrationGlasses < 3) {
         await _notifications.sendImmediateNudge(
           title: 'Stay hydrated 💧',
-          body:
-              'Only ${entry.hydrationGlasses} glasses logged today. '
-              'Aim for 8 glasses — dehydration worsens most symptoms.',
+          body: 'Only ${entry.hydrationGlasses} glasses today. Aim for 8.',
           payload: 'lifestyle:hydration',
         );
       }
-
-      if (entry.exerciseMinutes == 0) {
-        // Schedule a gentle activity reminder for later today, not immediate
-        await _notifications.scheduleDelayedNudge(
-          title: 'Move a little today',
-          body: 'Even a 10-minute walk can reduce stress and improve sleep quality.',
-          delayMinutes: 60,
-          payload: 'lifestyle:exercise',
-        );
-      }
-    } catch (_) {
-      // Non-critical — don't block lifestyle save
-    }
+    } catch (_) {}
   }
 }

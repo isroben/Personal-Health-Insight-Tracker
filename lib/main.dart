@@ -7,7 +7,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart'; 
 
 import 'app.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'services/local_cache_service.dart';
+import 'providers/logging_provider.dart';
 import 'services/app_bootstrap_service.dart';
 
 Future<void> main() async {
@@ -32,20 +34,28 @@ Future<void> main() async {
       }
     }
 
-    // ── Hive (Local Cache) Initialization ──
-    await LocalCacheService.init();
-
-    final container = ProviderContainer();
+    // ── Pre-run Initializations ──
+    final prefs = await SharedPreferences.getInstance();
 
     runApp(
-      UncontrolledProviderScope(
-        container: container,
+      ProviderScope(
+        overrides: [
+          // Initialize SharedPreferences-backed cache
+          localCacheServiceProvider.overrideWithValue(LocalCacheService(prefs)),
+        ],
         child: const HealthInsightApp(),
       ),
     );
 
     // ── Non-blocking Bootstrap ──
-    _backgroundBootstrap(container);
+    // The container for background bootstrap needs to be created explicitly
+    // since runApp no longer uses an UncontrolledProviderScope with a pre-defined container.
+    final bootstrapContainer = ProviderContainer(
+      overrides: [
+        localCacheServiceProvider.overrideWithValue(LocalCacheService(prefs)),
+      ],
+    );
+    _backgroundBootstrap(bootstrapContainer);
 
   } catch (e, stack) {
     debugPrint('Critical initialization error: $e');

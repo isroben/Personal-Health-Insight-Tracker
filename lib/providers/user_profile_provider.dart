@@ -1,54 +1,67 @@
+/// ==========================================================================
+/// user_profile_provider.dart — User Profile State Provider (Riverpod)
+/// ==========================================================================
+/// Manages user profile updates via the backend API.
+///
+/// ARCHITECTURE NOTE:
+///   Profile operations now route through [UserProfileRepository]
+///   → [ApiService] → Backend instead of writing Firestore directly.
+/// ==========================================================================
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
-import '../services/user_profile_service.dart';
-import 'auth_provider.dart';
+import '../repositories/user_profile_repository.dart';
+import 'auth_provider.dart'; // userProfileRepositoryProvider
 
-final userProfileServiceProvider = Provider<UserProfileService>((ref) {
-  return UserProfileService();
-});
-
-final userProfileNotifierProvider = StateNotifierProvider<UserProfileNotifier, AsyncValue<void>>((ref) {
-  return UserProfileNotifier(ref.read(userProfileServiceProvider), ref);
+/// Manages profile update and delete operations.
+final userProfileNotifierProvider =
+    StateNotifierProvider<UserProfileNotifier, AsyncValue<void>>((ref) {
+  return UserProfileNotifier(
+    ref.read(userProfileRepositoryProvider),
+    ref,
+  );
 });
 
 class UserProfileNotifier extends StateNotifier<AsyncValue<void>> {
-  final UserProfileService _service;
+  final UserProfileRepository _repo;
   final Ref _ref;
 
-  UserProfileNotifier(this._service, this._ref) : super(const AsyncData(null));
+  UserProfileNotifier(this._repo, this._ref) : super(const AsyncData(null));
 
+  /// Updates the user's profile via Firestore.
   Future<void> updateProfile({
     String? name,
     String? photoUrl,
-    HealthPreferences? preferences,
+    Map<String, dynamic>? preferences,
   }) async {
+    final user = _ref.read(authStateProvider).valueOrNull;
+    if (user == null) {
+      state = AsyncError(Exception('User not authenticated'), StackTrace.current);
+      return;
+    }
+
     state = const AsyncLoading();
     try {
-      final user = _ref.read(authStateProvider).value;
-      if (user == null) throw Exception('No user logged in');
-
-      await _service.updateProfile(
+      await _repo.updateProfile(
         userId: user.id,
         name: name,
-        photoUrl: photoUrl,
+        profilePhotoUrl: photoUrl,
         preferences: preferences,
       );
-      
       state = const AsyncData(null);
     } catch (e, st) {
       state = AsyncError(e, st);
     }
   }
 
+  /// Deletes the user account — signs out Firebase Auth.
+  /// Backend cleanup (Firestore) is triggered server-side.
   Future<void> deleteAccount() async {
     state = const AsyncLoading();
     try {
-      final user = _ref.read(authStateProvider).value;
-      if (user == null) throw Exception('No user logged in');
-
-      await _service.deleteUserData(user.id);
+      final authService = _ref.read(authServiceProvider);
+      await authService.deleteAccount();
       await _ref.read(authActionsProvider.notifier).signOut();
-      
       state = const AsyncData(null);
     } catch (e, st) {
       state = AsyncError(e, st);

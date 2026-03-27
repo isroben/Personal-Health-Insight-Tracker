@@ -6,16 +6,25 @@
 /// - Auth loading/error states
 /// - Sign-in / sign-up / sign-out actions
 ///
-/// Depends on: AuthService
+/// ARCHITECTURE NOTE:
+///   [AuthService] now depends on [UserProfileRepository] to sync user data
+///   with the backend after auth events. The provider graph reflects this.
 /// ==========================================================================
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../repositories/user_profile_repository.dart';
+/// Provides a singleton [UserProfileRepository] instance.
+final userProfileRepositoryProvider = Provider<UserProfileRepository>((ref) {
+  return UserProfileRepository();
+});
 
-/// Provides a singleton instance of [AuthService].
+/// Provides a singleton [AuthService] with all dependencies injected.
 final authServiceProvider = Provider<AuthService>((ref) {
-  return AuthService();
+  return AuthService(
+    profileRepo: ref.read(userProfileRepositoryProvider),
+  );
 });
 
 /// Provides the current authenticated user as a stream.

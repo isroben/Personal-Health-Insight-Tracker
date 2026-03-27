@@ -68,25 +68,28 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
 
     final notifier = ref.read(loggingStateProvider.notifier);
     
-    // Log Symptom
     if (_selectedSymptomType != null) {
+      // Combined Symptom + Lifestyle log
       await notifier.submitSymptomLog(
         userId: user.id,
         symptomTypeName: _selectedSymptomType!.name,
         severity: _severity,
+        sleepHours: _sleepHours,
+        waterIntakeLitres: _waterIntake * 0.25, // Convert glasses to litres
+        exerciseMinutes: _exerciseMins,
         notes: _notesController.text,
       );
+    } else {
+      // Lifestyle-only log
+      await notifier.submitLifestyleEntry(
+        userId: user.id,
+        sleepHours: _sleepHours,
+        dietQualityName: 'balanced', 
+        hydrationGlasses: _waterIntake,
+        exerciseMinutes: _exerciseMins,
+        stressLevel: 5.0,
+      );
     }
-
-    // Log Lifestyle
-    await notifier.submitLifestyleEntry(
-      userId: user.id,
-      sleepHours: _sleepHours,
-      dietQualityName: 'balanced', // Placeholder
-      hydrationGlasses: _waterIntake,
-      exerciseMinutes: _exerciseMins,
-      stressLevel: 3.0, // Placeholder
-    );
 
     if (mounted) {
       Navigator.pop(context);

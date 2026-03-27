@@ -6,6 +6,8 @@ import '../providers/auth_provider.dart';
 import '../providers/symptom_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../models/symptom_log.dart';
+import '../routes/app_router.dart';
+import '../services/gamification_service.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -44,7 +46,7 @@ class HomeScreen extends ConsumerWidget {
                   style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                _buildSummaryGrid(isDesktop, isTablet),
+                _buildSummaryGrid(ref, isDesktop, isTablet, user?.id),
                 const SizedBox(height: 32),
                 Text(
                   "Today's Activity",
@@ -59,8 +61,8 @@ class HomeScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Typically open logging screen
-          ref.read(bottomNavIndexProvider.notifier).state = 1;
+          // Open the log entry panel (fullscreen dialog)
+          Navigator.pushNamed(context, AppRouter.logRoute);
         },
         backgroundColor: theme.colorScheme.primary,
         child: const Icon(Icons.add, color: Colors.white),
@@ -90,60 +92,95 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSummaryGrid(bool isDesktop, bool isTablet) {
-    int crossAxisCount = 2;
-    if (isDesktop) crossAxisCount = 4;
-    else if (isTablet) crossAxisCount = 3;
+  Widget _buildSummaryGrid(WidgetRef ref, bool isDesktop, bool isTablet, String? userId) {
+    if (userId == null) return const SizedBox.shrink();
 
-    final summaryItems = [
-      _SummaryItem(label: 'Sleep', value: '7.5h', icon: Icons.nightlight_round, color: Colors.indigo),
-      _SummaryItem(label: 'Hydration', value: '6/8', icon: Icons.water_drop, color: Colors.cyan),
-      _SummaryItem(label: 'Stress', value: 'Low', icon: Icons.bolt, color: Colors.orange),
-      _SummaryItem(label: 'Exercise', value: '30min', icon: Icons.fitness_center, color: Colors.blueAccent),
-    ];
+    final summaryAsync = ref.watch(todaySummaryProvider(userId));
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 1.3,
-      ),
-      itemCount: summaryItems.length,
-      itemBuilder: (context, index) {
-        final item = summaryItems[index];
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: item.color.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(item.icon, size: 20, color: item.color),
-                ),
-                Column(
+    return summaryAsync.when(
+      data: (data) {
+        int crossAxisCount = 2;
+        if (isDesktop) crossAxisCount = 4;
+        else if (isTablet) crossAxisCount = 3;
+
+        final sleepHours = data['sleep'] as double;
+        final hydrationLitres = data['hydration'] as double;
+        final stressLabel = data['stress'] as String;
+        final exerciseMins = data['exercise'] as int;
+
+        final summaryItems = [
+          _SummaryItem(
+            label: 'Sleep', 
+            value: '${sleepHours.toStringAsFixed(1)}h', 
+            icon: Icons.nightlight_round, 
+            color: Colors.indigo
+          ),
+          _SummaryItem(
+            label: 'Hydration', 
+            value: '${(hydrationLitres / 0.25).round()}/8', // Converting back to glasses for display
+            icon: Icons.water_drop, 
+            color: Colors.cyan
+          ),
+          _SummaryItem(
+            label: 'Stress', 
+            value: stressLabel, 
+            icon: Icons.bolt, 
+            color: Colors.orange
+          ),
+          _SummaryItem(
+            label: 'Exercise', 
+            value: '${exerciseMins}min', 
+            icon: Icons.fitness_center, 
+            color: Colors.blueAccent
+          ),
+        ];
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 1.3,
+          ),
+          itemCount: summaryItems.length,
+          itemBuilder: (context, index) {
+            final item = summaryItems[index];
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(item.label, style: Theme.of(context).textTheme.bodySmall),
-                    Text(
-                      item.value,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: item.color.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(item.icon, size: 20, color: item.color),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.label, style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          item.value,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: $e')),
     );
   }
 
@@ -152,10 +189,19 @@ class HomeScreen extends ConsumerWidget {
 
     return logsAsync.when(
       data: (logs) {
-        if (logs.isEmpty) {
-          return const Center(child: Text('No activity today.'));
+        final now = DateTime.now();
+        final todayLogs = logs.where((l) => 
+          l.date.year == now.year && l.date.month == now.month && l.date.day == now.day
+        ).take(5).toList();
+
+        if (todayLogs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Text('No activity logged today yet.'),
+            ),
+          );
         }
-        final todayLogs = logs.take(4).toList(); // Show a few
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -228,11 +274,30 @@ class _HealthScoreCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final scoreAsync = userId != null 
-        ? ref.watch(wellnessScoreProvider(userId!))
-        : const AsyncValue<int>.data(78); 
     
-    final score = scoreAsync.value ?? 0;
+    // Watch the health trend provider for real-time score and label
+    final trendAsync = userId != null 
+        ? ref.watch(healthTrendProvider(userId!))
+        : const AsyncValue<HealthTrend>.loading(); 
+    
+    return trendAsync.when(
+      data: (trend) => _buildCard(context, theme, trend.score.round(), trend.label),
+      loading: () => _buildCard(context, theme, 0, 'Calculating...', isLoading: true),
+      error: (e, _) => _buildCard(context, theme, 0, 'Error: $e'),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, ThemeData theme, int score, String label, {bool isLoading = false}) {
+    Color trendColor = Colors.grey;
+    IconData trendIcon = Icons.trending_flat;
+
+    if (label == 'Improving') {
+      trendColor = Colors.green;
+      trendIcon = Icons.trending_up;
+    } else if (label == 'Declining') {
+      trendColor = Colors.red;
+      trendIcon = Icons.trending_down;
+    }
 
     return Card(
       child: Padding(
@@ -252,13 +317,20 @@ class _HealthScoreCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text(
-                        '$score',
-                        style: theme.textTheme.displayLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
+                      if (isLoading)
+                        const SizedBox(
+                          height: 32,
+                          width: 32,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        )
+                      else
+                        Text(
+                          '$score',
+                          style: theme.textTheme.displayLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
-                      ),
                       const SizedBox(width: 4),
                       Text('/100', style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
                     ],
@@ -269,12 +341,12 @@ class _HealthScoreCard extends ConsumerWidget {
                       Container(
                         width: 10,
                         height: 10,
-                        decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: trendColor, shape: BoxShape.circle),
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Improving this week',
-                        style: theme.textTheme.bodySmall?.copyWith(color: Colors.green, fontWeight: FontWeight.bold),
+                        label,
+                        style: theme.textTheme.bodySmall?.copyWith(color: trendColor, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -288,7 +360,7 @@ class _HealthScoreCard extends ConsumerWidget {
                 color: theme.colorScheme.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.trending_up, color: Colors.green, size: 40),
+              child: Icon(trendIcon, color: trendColor, size: 40),
             ),
           ],
         ),
