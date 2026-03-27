@@ -32,6 +32,10 @@ class UserProfileNotifier extends StateNotifier<AsyncValue<void>> {
   Future<void> updateProfile({
     String? name,
     String? photoUrl,
+    int? age,
+    double? height,
+    double? weight,
+    String? gender,
     Map<String, dynamic>? preferences,
   }) async {
     final user = _ref.read(authStateProvider).valueOrNull;
@@ -46,6 +50,10 @@ class UserProfileNotifier extends StateNotifier<AsyncValue<void>> {
         userId: user.id,
         name: name,
         profilePhotoUrl: photoUrl,
+        age: age,
+        height: height,
+        weight: weight,
+        gender: gender,
         preferences: preferences,
       );
       state = const AsyncData(null);
@@ -56,15 +64,17 @@ class UserProfileNotifier extends StateNotifier<AsyncValue<void>> {
 
   /// Deletes the user account — signs out Firebase Auth.
   /// Backend cleanup (Firestore) is triggered server-side.
-  Future<void> deleteAccount() async {
+  /// Deletes the user account — requires password re-authentication.
+  Future<void> deleteAccount(String password) async {
     state = const AsyncLoading();
     try {
       final authService = _ref.read(authServiceProvider);
-      await authService.deleteAccount();
+      await authService.deleteAccount(password);
       await _ref.read(authActionsProvider.notifier).signOut();
       state = const AsyncData(null);
     } catch (e, st) {
       state = AsyncError(e, st);
+      rethrow;
     }
   }
 }

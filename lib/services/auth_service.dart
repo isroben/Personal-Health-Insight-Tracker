@@ -115,13 +115,39 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: email);
   }
 
+  // ── Change Password ──
+
+  /// Changes the user's password. Requires re-authentication with current password.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user signed in.');
+
+    final cred = fb.EmailAuthProvider.credential(
+      email: user.email!,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(cred);
+    await user.updatePassword(newPassword);
+  }
+
   // ── Delete Account ──
 
-  /// Deletes the Firebase Auth account.
+  /// Deletes the Firebase Auth account. Requires re-authentication.
   /// Note: backend cleanup (Firestore document, etc.) should be handled
   /// server-side via a dedicated API endpoint.
-  Future<void> deleteAccount() async {
-    await _auth.currentUser?.delete();
+  Future<void> deleteAccount(String password) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user signed in.');
+
+    final cred = fb.EmailAuthProvider.credential(
+      email: user.email!,
+      password: password,
+    );
+    await user.reauthenticateWithCredential(cred);
+    await user.delete();
   }
 
   // ── Private Helpers ──

@@ -68,4 +68,18 @@ class AuthActionsNotifier extends StateNotifier<AsyncValue<void>> {
   Future<void> signOut() async {
     await _authService.signOut();
   }
+
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    state = const AsyncLoading();
+    try {
+      await _authService.changePassword(
+        currentPassword: currentPassword, 
+        newPassword: newPassword,
+      );
+      state = const AsyncData(null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
 }

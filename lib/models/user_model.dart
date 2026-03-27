@@ -8,6 +8,10 @@ class UserModel {
   final String name;
   final String email;
   final String? profilePhotoUrl;
+  final int? age;
+  final double? height;
+  final double? weight;
+  final String? gender;
   final SubscriptionTier subscription;
   final HealthPreferences preferences;
   final DateTime createdAt;
@@ -18,6 +22,10 @@ class UserModel {
     required this.name,
     required this.email,
     this.profilePhotoUrl,
+    this.age,
+    this.height,
+    this.weight,
+    this.gender,
     this.subscription = SubscriptionTier.free,
     this.preferences = const HealthPreferences(),
     required this.createdAt,
@@ -30,6 +38,10 @@ class UserModel {
       name: map['name'] as String,
       email: map['email'] as String,
       profilePhotoUrl: map['profilePhotoUrl'] as String?,
+      age: map['age'] as int?,
+      height: (map['height'] as num?)?.toDouble(),
+      weight: (map['weight'] as num?)?.toDouble(),
+      gender: map['gender'] as String?,
       subscription: SubscriptionTier.values.firstWhere(
         (e) => e.name == (map['subscription'] ?? 'free'),
         orElse: () => SubscriptionTier.free,
@@ -48,6 +60,10 @@ class UserModel {
       'name': name,
       'email': email,
       'profilePhotoUrl': profilePhotoUrl,
+      'age': age,
+      'height': height,
+      'weight': weight,
+      'gender': gender,
       'subscription': subscription.name,
       'preferences': preferences.toMap(),
       'createdAt': createdAt.toIso8601String(),
@@ -65,6 +81,10 @@ class UserModel {
     String? name,
     String? email,
     String? profilePhotoUrl,
+    int? age,
+    double? height,
+    double? weight,
+    String? gender,
     SubscriptionTier? subscription,
     HealthPreferences? preferences,
     DateTime? createdAt,
@@ -75,6 +95,10 @@ class UserModel {
       name: name ?? this.name,
       email: email ?? this.email,
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
+      age: age ?? this.age,
+      height: height ?? this.height,
+      weight: weight ?? this.weight,
+      gender: gender ?? this.gender,
       subscription: subscription ?? this.subscription,
       preferences: preferences ?? this.preferences,
       createdAt: createdAt ?? this.createdAt,

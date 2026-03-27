@@ -30,12 +30,20 @@ class UserProfileRepository {
     required String userId,
     String? name,
     String? profilePhotoUrl,
+    int? age,
+    double? height,
+    double? weight,
+    String? gender,
     Map<String, dynamic>? preferences,
   }) async {
     final updates = <String, dynamic>{
       'updatedAt': FieldValue.serverTimestamp(),
       if (name != null) 'name': name,
       if (profilePhotoUrl != null) 'profilePhotoUrl': profilePhotoUrl,
+      if (age != null) 'age': age,
+      if (height != null) 'height': height,
+      if (weight != null) 'weight': weight,
+      if (gender != null) 'gender': gender,
       if (preferences != null) 'preferences': preferences,
     };
 
@@ -57,6 +65,10 @@ class UserProfileRepository {
       'name': raw['name'] ?? '',
       'email': raw['email'] ?? '',
       'profilePhotoUrl': raw['profilePhotoUrl'],
+      'age': raw['age'],
+      'height': raw['height'],
+      'weight': raw['weight'],
+      'gender': raw['gender'],
       'subscription': raw['subscription'] ?? 'free',
       'preferences': raw['preferences'],
       'createdAt': _parseTimestamp(raw['createdAt']),

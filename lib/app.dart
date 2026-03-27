@@ -22,6 +22,7 @@ import 'providers/auth_provider.dart';
 import 'providers/connectivity_provider.dart';
 import 'providers/navigation_provider.dart';
 import 'providers/onboarding_provider.dart';
+import 'providers/app_preferences_provider.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
 
@@ -36,13 +37,22 @@ class HealthInsightApp extends ConsumerWidget {
 
     // While connectivity status is loading (first check), proceed optimistically.
     // Once we have a definitive offline signal, show the wall screen.
+    final prefsState = ref.watch(appPreferencesProvider);
+
     if (!isOnline) {
       return MaterialApp(
         title: 'Health Insight Tracker',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.light,
+        themeMode: prefsState.themeMode,
+        locale: prefsState.locale,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(prefsState.textScaleFactor),
+          ),
+          child: child!,
+        ),
         home: const NoInternetScreen(),
       );
     }
@@ -54,7 +64,14 @@ class HealthInsightApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.light,
+      themeMode: prefsState.themeMode,
+      locale: prefsState.locale,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(prefsState.textScaleFactor),
+        ),
+        child: child!,
+      ),
       home: authState.when(
         data: (user) {
           final onboardingCompleted = ref.watch(onboardingProvider);
