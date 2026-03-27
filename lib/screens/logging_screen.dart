@@ -25,15 +25,23 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
   final TextEditingController _notesController = TextEditingController();
 
   // Lifestyle State
-  double _sleepHours = 7.0;
-  int _meals = 3;
-  int _waterIntake = 6;
-  int _exerciseMins = 30;
+  final TextEditingController _sleepHoursCtrl = TextEditingController(text: '0');
+  final TextEditingController _sleepMinsCtrl = TextEditingController(text: '0');
+  final TextEditingController _mealsCtrl = TextEditingController(text: '0');
+  final TextEditingController _waterCtrl = TextEditingController(text: '0.0');
+  final TextEditingController _exerciseHoursCtrl = TextEditingController(text: '0');
+  final TextEditingController _exerciseMinsCtrl = TextEditingController(text: '0');
 
   @override
   void dispose() {
     _pageController.dispose();
     _notesController.dispose();
+    _sleepHoursCtrl.dispose();
+    _sleepMinsCtrl.dispose();
+    _mealsCtrl.dispose();
+    _waterCtrl.dispose();
+    _exerciseHoursCtrl.dispose();
+    _exerciseMinsCtrl.dispose();
     super.dispose();
   }
 
@@ -68,25 +76,29 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
 
     final notifier = ref.read(loggingStateProvider.notifier);
     
+    double parsedSleep = (double.tryParse(_sleepHoursCtrl.text) ?? 0.0) + ((double.tryParse(_sleepMinsCtrl.text) ?? 0.0) / 60.0);
+    double parsedWater = double.tryParse(_waterCtrl.text) ?? 0.0;
+    int parsedExercise = ((int.tryParse(_exerciseHoursCtrl.text) ?? 0) * 60) + (int.tryParse(_exerciseMinsCtrl.text) ?? 0);
+
     if (_selectedSymptomType != null) {
       // Combined Symptom + Lifestyle log
       await notifier.submitSymptomLog(
         userId: user.id,
         symptomTypeName: _selectedSymptomType!.name,
         severity: _severity,
-        sleepHours: _sleepHours,
-        waterIntakeLitres: _waterIntake * 0.25, // Convert glasses to litres
-        exerciseMinutes: _exerciseMins,
+        sleepHours: parsedSleep,
+        waterIntakeLitres: parsedWater * 0.25, // Convert glasses to litres
+        exerciseMinutes: parsedExercise,
         notes: _notesController.text,
       );
     } else {
       // Lifestyle-only log
       await notifier.submitLifestyleEntry(
         userId: user.id,
-        sleepHours: _sleepHours,
+        sleepHours: parsedSleep,
         dietQualityName: 'balanced', 
-        hydrationGlasses: _waterIntake,
-        exerciseMinutes: _exerciseMins,
+        hydrationGlasses: parsedWater.toInt(),
+        exerciseMinutes: parsedExercise,
         stressLevel: 5.0,
       );
     }
@@ -118,7 +130,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
           preferredSize: const Size.fromHeight(4),
           child: LinearProgressIndicator(
             value: (_currentStep + 1) / _totalSteps,
-            backgroundColor: Colors.grey.withOpacity(0.1),
+            backgroundColor: theme.brightness == Brightness.dark ? Colors.grey[800] : Colors.grey.withOpacity(0.1),
           ),
         ),
       ),
@@ -155,6 +167,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
   }
 
   Widget _buildSymptomSelection(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     final List<Map<String, dynamic>> items = [
       {'type': SymptomType.headache, 'icon': Icons.psychology, 'color': Colors.blue},
       {'type': SymptomType.fatigue, 'icon': Icons.coffee, 'color': Colors.green},
@@ -189,7 +202,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isSelected ? Colors.blue.withValues(alpha: 0.05) : Colors.white,
+                      color: isSelected ? Colors.blue.withValues(alpha: isDark ? 0.2 : 0.05) : (theme.cardTheme.color ?? Colors.white),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isSelected ? Colors.blue : Colors.grey.withValues(alpha: 0.1),
@@ -210,7 +223,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
                         const SizedBox(height: 12),
                         Text(
                           type.displayName,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87),
                         ),
                       ],
                     ),
@@ -242,7 +255,7 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
               child: Column(
                 children: [
                   Text(
-                    _severity.toInt().toString(),
+                    _severity.toStringAsFixed(1),
                     style: theme.textTheme.displayLarge?.copyWith(
                       color: Colors.orange,
                       fontWeight: FontWeight.bold,
@@ -254,7 +267,6 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
                     value: _severity,
                     min: 1,
                     max: 10,
-                    divisions: 9,
                     onChanged: (v) => setState(() => _severity = v),
                   ),
                   const Padding(
@@ -277,7 +289,8 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
   }
 
   Widget _buildLifestyleFactors(ThemeData theme) {
-    return Padding(
+    final isDark = theme.brightness == Brightness.dark;
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,43 +299,42 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
           const SizedBox(height: 24),
           _buildLifestyleTile(
             'Sleep Hours',
-            '${_sleepHours.toInt()} hours',
+            'Time spent sleeping',
             Icons.nightlight_round,
             Colors.blue,
-            _sleepHours.toInt(),
-            (v) => setState(() => _sleepHours = v.toDouble()),
+            _buildTimeInput(_sleepHoursCtrl, _sleepMinsCtrl, isDark),
+            isDark: isDark,
           ),
           _buildLifestyleTile(
             'Meals',
-            '$_meals meals today',
+            'Number of meals today',
             Icons.restaurant,
             Colors.orange,
-            _meals,
-            (v) => setState(() => _meals = v),
+            _buildNumberInput(_mealsCtrl, isDark),
+            isDark: isDark,
           ),
           _buildLifestyleTile(
             'Water Intake',
-            '$_waterIntake glasses',
+            'Litres',
             Icons.water_drop,
             Colors.green,
-            _waterIntake,
-            (v) => setState(() => _waterIntake = v),
+            _buildNumberInput(_waterCtrl, isDark, isDouble: true),
+            isDark: isDark,
           ),
           _buildLifestyleTile(
             'Exercise',
-            '$_exerciseMins minutes',
+            'Total workout duration',
             Icons.fitness_center,
             Colors.purple,
-            _exerciseMins,
-            (v) => setState(() => _exerciseMins = v),
-            step: 5,
+            _buildTimeInput(_exerciseHoursCtrl, _exerciseMinsCtrl, isDark),
+            isDark: isDark,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLifestyleTile(String title, String subtitle, IconData icon, Color color, int value, ValueChanged<int> onChanged, {int step = 1}) {
+  Widget _buildLifestyleTile(String title, String subtitle, IconData icon, Color color, Widget inputWidget, {bool isDark = false}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -339,50 +351,76 @@ class _LoggingScreenState extends ConsumerState<LoggingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+                  Text(subtitle, style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey, fontSize: 12)),
                 ],
               ),
             ),
-            _buildCustomStepper(value, onChanged, step),
+            inputWidget,
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCustomStepper(int value, ValueChanged<int> onChanged, int step) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$value', style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(width: 8),
-          Column(
-            children: [
-              GestureDetector(
-                onTap: () => onChanged(value + step),
-                child: const Icon(Icons.keyboard_arrow_up, size: 16),
-              ),
-              GestureDetector(
-                onTap: () => onChanged(value > 0 ? value - step : 0),
-                child: const Icon(Icons.keyboard_arrow_down, size: 16),
-              ),
-            ],
+  Widget _buildTimeInput(TextEditingController hoursCtrl, TextEditingController minsCtrl, bool isDark) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 60,
+          child: TextField(
+            controller: hoursCtrl,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              suffixText: 'h',
+            ),
           ),
-        ],
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 60,
+          child: TextField(
+            controller: minsCtrl,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              suffixText: 'm',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNumberInput(TextEditingController ctrl, bool isDark, {bool isDouble = false}) {
+    return SizedBox(
+      width: 70,
+      child: TextField(
+        controller: ctrl,
+        keyboardType: TextInputType.numberWithOptions(decimal: isDouble),
+        textAlign: TextAlign.center,
+        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.bold),
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
       ),
     );
   }
 
   Widget _buildNotesSelection(ThemeData theme) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

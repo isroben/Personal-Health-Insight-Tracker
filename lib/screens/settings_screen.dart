@@ -64,14 +64,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
+        title: Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: isDark ? Colors.white : Colors.black)),
         centerTitle: false,
-        backgroundColor: Colors.white,
+        backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: isDark ? Colors.white : Colors.black,
         toolbarHeight: 60,
       ),
       body: SingleChildScrollView(
@@ -477,7 +478,7 @@ class _UserProfileSection extends ConsumerWidget {
                         const SizedBox(height: 4),
                         Text(
                           user.email,
-                          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+                          style: theme.textTheme.bodyMedium?.copyWith(color: theme.brightness == Brightness.dark ? Colors.grey[400] : Colors.grey[600]),
                         ),
                       ],
                     ),
@@ -818,12 +819,13 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 12),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          color: Colors.grey[600],
+          color: isDark ? Colors.grey[400] : Colors.grey[600],
           fontWeight: FontWeight.bold,
           fontSize: 12,
           letterSpacing: 1.2,
@@ -839,11 +841,12 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
+        boxShadow: isDark ? null : [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
             blurRadius: 10,
@@ -861,7 +864,8 @@ class _Divider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Divider(height: 1, indent: 56, color: Color(0xFFF1F5F9));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Divider(height: 1, indent: 56, color: isDark ? Colors.grey[800] : const Color(0xFFF1F5F9));
   }
 }
 
@@ -886,6 +890,7 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
@@ -894,10 +899,10 @@ class _SettingsTile extends StatelessWidget {
       ),
       title: Text(
         title,
-        style: TextStyle(fontWeight: FontWeight.w600, color: titleColor ?? Colors.black87, fontSize: 16),
+        style: TextStyle(fontWeight: FontWeight.w600, color: titleColor ?? (isDark ? Colors.white : Colors.black87), fontSize: 16),
       ),
-      subtitle: subtitle != null ? Text(subtitle!, style: const TextStyle(color: Colors.grey, fontSize: 13)) : null,
-      trailing: trailing ?? const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+      subtitle: subtitle != null ? Text(subtitle!, style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey, fontSize: 13)) : null,
+      trailing: trailing ?? Icon(Icons.chevron_right, color: isDark ? Colors.grey[400] : Colors.grey, size: 20),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       onTap: onTap,
     );
@@ -923,6 +928,7 @@ class _SettingsSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
@@ -931,9 +937,9 @@ class _SettingsSwitch extends StatelessWidget {
       ),
       title: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87, fontSize: 16),
+        style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87, fontSize: 16),
       ),
-      subtitle: subtitle != null ? Text(subtitle!, style: const TextStyle(color: Colors.grey, fontSize: 13)) : null,
+      subtitle: subtitle != null ? Text(subtitle!, style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey, fontSize: 13)) : null,
       trailing: Switch(
         value: value,
         onChanged: onChanged,
@@ -963,6 +969,7 @@ class _SettingsDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
@@ -971,13 +978,14 @@ class _SettingsDropdown extends StatelessWidget {
       ),
       title: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87, fontSize: 16),
+        style: TextStyle(fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87, fontSize: 16),
       ),
       trailing: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
-          icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
-          style: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.bold),
+          dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          icon: Icon(Icons.arrow_drop_down, color: isDark ? Colors.grey[400] : Colors.grey),
+          style: TextStyle(color: isDark ? Colors.grey[300] : Colors.grey, fontSize: 14, fontWeight: FontWeight.bold),
           onChanged: onChanged,
           items: items.map<DropdownMenuItem<String>>((String val) {
             return DropdownMenuItem<String>(
